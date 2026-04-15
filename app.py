@@ -4,42 +4,44 @@ import pandas as pd
 from PIL import Image
 import io
 import datetime
+import json
+import os
 
-# --- 1. CONFIGURACIÓN Y ESTILO VISUAL (CSS) ---
+# --- 1. CONFIGURACIÓN Y PERSISTENCIA ---
 st.set_page_config(page_title="Gestión de Informes", layout="wide")
 
-# Pintura y terminaciones (CSS personalizado)
+USER_DB = "usuarios.json"
+
+# Función para cargar usuarios guardados
+def cargar_usuarios():
+    if os.path.exists(USER_DB):
+        with open(USER_DB, "r") as f:
+            return json.load(f)
+    return {"admin": "tecnoelec2026"} # Usuario por defecto
+
+# Función para guardar nuevos usuarios
+def guardar_usuario(usuario, clave):
+    usuarios = cargar_usuarios()
+    usuarios[usuario] = clave
+    with open(USER_DB, "w") as f:
+        json.dump(usuarios, f)
+
+# CSS Profesional
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 3em;
-        background-color: #004a99;
-        color: white;
-    }
-    .stSidebar {
-        background-color: #f0f2f6;
-    }
-    h1, h2 {
-        color: #1c2b46;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #004a99; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# Inicialización de bases de datos temporales
+# Inicializar estados
+if 'conectado' not in st.session_state:
+    st.session_state['conectado'] = False
 if 'clientes' not in st.session_state:
     st.session_state['clientes'] = pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion'])
 if 'perfil' not in st.session_state:
     st.session_state['perfil'] = {"empresa": "Mi Empresa", "rut": "", "logo": None}
-if 'conectado' not in st.session_state:
-    st.session_state['conectado'] = False
 
-# --- 2. MOTOR DEL PDF ---
+# --- 2. MOTOR DEL PDF (Se mantiene igual) ---
 def generar_pdf_avanzado(titulo_doc, perfil, cliente, proyecto, datos_obra, logo_img):
     pdf = FPDF()
     pdf.add_page()
@@ -100,23 +102,49 @@ def generar_pdf_avanzado(titulo_doc, perfil, cliente, proyecto, datos_obra, logo
     pdf.cell(50, 5, "V.B. Cliente", 0, 0, 'C')
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 3. LOGICA DE ACCESO ---
+# --- 3. LÓGICA DE ACCESO Y REGISTRO ---
 if not st.session_state['conectado']:
     st.title("Sistema de Gestión de Informes Técnicos")
-    col_login, _ = st.columns([1, 2])
-    with col_login:
-        u = st.text_input("Usuario")
-        p = st.text_input("Contraseña", type="password")
-        if st.button("Iniciar Sesión"):
-            if u == "admin" and p == "tecnoelec2026":
-                st.session_state['conectado'] = True
-                st.rerun()
-            else:
-                st.error("Credenciales incorrectas")
+    
+    tab_login, tab_registro = st.tabs(["Iniciar Sesión", "Crear Cuenta"])
+    
+    with tab_login:
+        col_l, _ = st.columns([1, 2])
+        with col_l:
+            u_login = st.text_input("Usuario", key="login_u")
+            p_login = st.text_input("Contraseña", type="password", key="login_p")
+            if st.button("Entrar"):
+                usuarios = cargar_usuarios()
+                if u_login in usuarios and usuarios[u_login] == p_login:
+                    st.session_state['conectado'] = True
+                    st.rerun()
+                else:
+                    st.error("Usuario o contraseña incorrectos")
+                    
+    with tab_registro:
+        col_r, _ = st.columns([1, 2])
+        with col_r:
+            st.subheader("Regístrate gratis")
+            u_reg = st.text_input("Elige un Usuario", key="reg_u")
+            p_reg = st.text_input("Elige una Contraseña", type="password", key="reg_p")
+            p_reg_conf = st.text_input("Confirma tu Contraseña", type="password", key="reg_p_c")
+            
+            if st.button("Crear mi cuenta"):
+                usuarios = cargar_usuarios()
+                if u_reg in usuarios:
+                    st.warning("Ese usuario ya existe.")
+                elif p_reg != p_reg_conf:
+                    st.error("Las contraseñas no coinciden.")
+                elif len(p_reg) < 4:
+                    st.error("La contraseña debe tener al menos 4 caracteres.")
+                else:
+                    guardar_usuario(u_reg, p_reg)
+                    st.success("¡Cuenta creada! Ahora puedes iniciar sesión.")
+
 else:
-    # --- 4. PANEL PRINCIPAL ---
-    st.sidebar.markdown("### Navegación")
-    m = st.sidebar.radio("", ["Mi Perfil", "Mis Clientes", "Crear Informe", "Cerrar Sesión"])
+    # --- 4. PANEL PRINCIPAL (Igual que antes) ---
+    st.sidebar.markdown(f"### Bienvenido")
+    m = st.sidebar.radio("Navegación", ["Mi Perfil", "Mis Clientes", "Crear Informe", "Cerrar Sesión"])
 
     if m == "Mi Perfil":
         st.header("Configuración de Perfil")
@@ -124,7 +152,6 @@ else:
         st.session_state['perfil']['rut'] = st.text_input("RUT / Identificación", value=st.session_state['perfil']['rut'])
         logo = st.file_uploader("Subir Logotipo", type=["png", "jpg"])
         if logo: st.session_state['perfil']['logo'] = logo
-        st.info("Estos datos aparecerán en el encabezado de todos tus informes.")
 
     elif m == "Mis Clientes":
         st.header("Base de Datos de Clientes")
@@ -138,54 +165,42 @@ else:
             if st.form_submit_button("Guardar Cliente"):
                 nuevo = pd.DataFrame([[nom, rut, dir]], columns=['Nombre', 'RUT', 'Direccion'])
                 st.session_state['clientes'] = pd.concat([st.session_state['clientes'], nuevo], ignore_index=True)
-                st.success("Cliente registrado con éxito.")
-        
-        if not st.session_state['clientes'].empty:
-            st.dataframe(st.session_state['clientes'], use_container_width=True)
+                st.success("Cliente registrado.")
+        st.dataframe(st.session_state['clientes'], use_container_width=True)
 
     elif m == "Crear Informe":
         st.header("Generar Nuevo Informe")
+        col1, col2 = st.columns(2)
+        with col1:
+            tit = st.text_input("Tipo de Documento", value="Informe de Trabajo")
+            if not st.session_state['clientes'].empty:
+                c_nom = st.selectbox("Seleccionar Cliente", st.session_state['clientes']['Nombre'])
+                c_data = st.session_state['clientes'][st.session_state['clientes']['Nombre'] == c_nom].iloc[0]
+            else: 
+                st.warning("Registra un cliente primero."); st.stop()
+        with col2:
+            proy = st.text_input("Referencia / Proyecto")
+            f_ini = st.date_input("Fecha Inicio", value=datetime.date.today())
         
-        # Bloque de Selección
-        with st.container():
-            col1, col2 = st.columns(2)
-            with col1:
-                tit = st.text_input("Tipo de Documento", value="Informe de Trabajo")
-                if not st.session_state['clientes'].empty:
-                    c_nom = st.selectbox("Seleccionar Cliente", st.session_state['clientes']['Nombre'])
-                    c_data = st.session_state['clientes'][st.session_state['clientes']['Nombre'] == c_nom].iloc[0]
-                else: 
-                    st.warning("Debe registrar un cliente primero.")
-                    st.stop()
-            with col2:
-                proy = st.text_input("Referencia / Proyecto")
-                f_ini = st.date_input("Fecha Inicio", value=datetime.date.today())
-        
-        # Bloque de Gestión
-        with st.expander("Detalles de Gestión y Personal", expanded=True):
-            col3, col4 = st.columns(2)
-            with col3:
+        with st.expander("Gestión y Personal"):
+            c3, c4 = st.columns(2)
+            with c3:
                 f_ter = st.date_input("Fecha Término", value=datetime.date.today())
-                t_aprox = st.text_input("Tiempo de ejecución", placeholder="Ej: 3 días")
-            with col4:
+                t_aprox = st.text_input("Tiempo de ejecución")
+            with c4:
                 enc = st.text_input("Responsable Técnico")
                 car = st.text_input("Cargo")
             equipo = st.text_area("Personal de apoyo")
 
-        # Bloque Técnico
         st.subheader("Desarrollo Técnico")
-        resumen = st.text_input("Breve resumen del servicio")
-        detalle = st.text_area("Descripción detallada de trabajos realizados", height=150)
-        concl = st.text_area("Conclusiones y recomendaciones")
+        resumen = st.text_input("Breve resumen")
+        detalle = st.text_area("Descripción detallada", height=150)
+        concl = st.text_area("Conclusiones")
 
         if st.button("Generar Informe PDF"):
-            datos_obra = {
-                "f_inicio": f_ini, "f_termino": f_ter, "tiempo": t_aprox,
-                "encargado": enc, "cargo": car, "equipo": equipo,
-                "resumen": resumen, "detalle": detalle, "conclu": concl
-            }
+            datos_obra = {"f_inicio": f_ini, "f_termino": f_ter, "tiempo": t_aprox, "encargado": enc, "cargo": car, "equipo": equipo, "resumen": resumen, "detalle": detalle, "conclu": concl}
             pdf_bytes = generar_pdf_avanzado(tit, st.session_state['perfil'], c_data, proy, datos_obra, st.session_state['perfil']['logo'])
-            st.download_button("Descargar Archivo PDF", data=pdf_bytes, file_name=f"Informe_{c_nom}.pdf")
+            st.download_button("Descargar PDF", data=pdf_bytes, file_name=f"Informe_{c_nom}.pdf")
     
     elif m == "Cerrar Sesión":
         st.session_state['conectado'] = False

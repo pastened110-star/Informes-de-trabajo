@@ -18,13 +18,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN SEGURA (Service Account) ---
+# --- 2. CONEXIÓN SEGURA CON LIMPIEZA DE COLUMNAS ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_global = conn.read(ttl=0)
-    # Normalizamos nombres de columnas para que coincidan con tu Excel
-    if not df_global.empty:
+    df_raw = conn.read(ttl=0)
+    
+    # Forzamos que el DataFrame tenga solo las 4 columnas legales
+    if not df_raw.empty:
+        # Tomamos solo las primeras 4 columnas para evitar el error de 'Length mismatch'
+        df_global = df_raw.iloc[:, :4]
         df_global.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
+    else:
+        df_global = pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
 except Exception as e:
     st.error(f"Error de Conexión: {e}")
     df_global = pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
@@ -42,7 +47,7 @@ def cargar_json(file, default):
 def guardar_json(file, datos):
     with open(file, "w") as f: json.dump(datos, f)
 
-# --- 3. MOTOR PDF REFORZADO (Diseño RIC/RPTD) ---
+# --- 3. MOTOR PDF (RIC/RPTD PROFESIONAL) ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -63,7 +68,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf = PDF_Pro()
     pdf.set_auto_page_break(auto=True, margin=25)
     
-    # --- PÁGINA 1: PORTADA ---
+    # Portada Profesional
     pdf.add_page()
     if os.path.exists(logo_p): pdf.image(logo_p, 10, 10, 30)
     pdf.set_y(45); pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
@@ -81,7 +86,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
     pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
     
-    # --- PÁGINA 2: DESARROLLO TÉCNICO ---
+    # Desarrollo
     pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" Cliente: {limpiar(cliente['Nombre'])}", 1); pdf.cell(95, 7, f" Contacto: {limpiar(cliente['Contacto'])}", 1, 1)
@@ -92,7 +97,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['f_inicio']}", 1, 0); pdf.cell(95, 7, f" {datos['f_termino']}", 1, 1)
     pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " RESPONSABLE TECNICO", 1, 0); pdf.cell(95, 7, " CARGO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {limpiar(datos['encargado'])}", 1, 0); pdf.cell(95, 7, f" {limpiar(datos['cargo'])}", 1, 1)
-    pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO (EQUIPO TRABAJO)", 1, 1)
+    pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES"); pdf.multi_cell(0, 6, f" {limpiar(datos['detalle'])}", 1); pdf.ln(5)
@@ -108,7 +113,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 4. INTERFAZ DE USUARIO ---
+# --- 4. INTERFAZ ---
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
@@ -119,58 +124,63 @@ if not st.session_state['conectado']:
             st.session_state['conectado'] = True; st.rerun()
         else: st.error("Acceso denegado")
 else:
-    op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
+    op = st.sidebar.radio("Menú Principal", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
 
     if op == "Perfil Empresa":
-        st.header("Marca Corporativa")
+        st.header("Configuración Corporativa")
         p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
         emp = st.text_input("Nombre Empresa", value=p_data['empresa'])
-        log = st.file_uploader("Logo Corporativo", type=["png","jpg","jpeg"])
-        if st.button("Guardar"):
+        log = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
+        if st.button("Actualizar Perfil"):
             guardar_json(PERFIL_FILE, {"empresa": emp})
             if log: Image.open(log).convert("RGB").save(LOGO_PATH)
-            st.success("Perfil y Logo actualizados")
+            st.success("Cambios guardados")
 
     elif op == "Clientes Cloud":
-        st.header("Base de Datos en Tiempo Real")
+        st.header("Gestión de Clientes (Nube)")
         with st.form("fc", clear_on_submit=True):
             n = st.text_input("Nombre Cliente"); r = st.text_input("RUT")
             d = st.text_input("Dirección"); c = st.text_input("Contacto")
             if st.form_submit_button("Guardar en la Nube"):
                 if n and r:
                     try:
-                        df_actual = conn.read(ttl=0)
+                        # Leemos y forzamos 4 columnas para evitar 'Length mismatch'
+                        df_actual_raw = conn.read(ttl=0)
+                        df_actual = df_actual_raw.iloc[:, :4] if not df_actual_raw.empty else pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
+                        df_actual.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
+                        
                         nuevo = pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
                         df_final = pd.concat([df_actual, nuevo], ignore_index=True)
+                        
                         conn.update(data=df_final)
                         st.success(f"¡{n} guardado!"); st.rerun()
-                    except Exception as e: st.error(f"Error al escribir: {e}")
-                else: st.warning("Nombre y RUT obligatorios.")
+                    except Exception as e: st.error(f"Error técnico: {e}")
+                else: st.warning("Complete Nombre y RUT.")
         st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico")
-        if df_global.empty: st.warning("Agregue un cliente primero."); st.stop()
+        st.header("Nuevo Informe Técnico RIC")
+        if df_global.empty: st.warning("Registre un cliente primero."); st.stop()
         
         c_sel = st.selectbox("Seleccionar Cliente", df_global['Nombre'])
         c_dat = df_global[df_global['Nombre'] == c_sel].iloc[0]
-        proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
-        img_p = st.file_uploader("🖼️ Imagen de Portada Principal", type=["jpg","png"])
+        proy = st.text_input("Proyecto", value="INSTALACION ELECTRICA")
+        img_p = st.file_uploader("Imagen Portada", type=["jpg","png"])
         
-        with st.expander("📝 Gestión de Obra y Personal", expanded=True):
+        with st.expander("📝 Datos de Obra", expanded=True):
             col1, col2 = st.columns(2)
             with col1: f_i = st.date_input("Inicio"); enc = st.text_input("Responsable", value="David Pastene")
             with col2: f_t = st.date_input("Termino"); car = st.text_input("Cargo", value="Instalador Eléctrico Clase D")
-            equ = st.text_area("Equipo de apoyo / Personal")
+            equ = st.text_area("Equipo de trabajo")
             
-        det = st.text_area("Descripción Actividades", height=200)
-        con = st.text_area("Conclusiones y Recomendaciones")
-        fotos = st.file_uploader("📸 Anexo Fotográfico", accept_multiple_files=True)
+        det = st.text_area("Descripción de Actividades", height=200)
+        con = st.text_area("Conclusiones")
+        fotos = st.file_uploader("Anexo Fotográfico", accept_multiple_files=True)
         
-        if st.button("🚀 GENERAR PDF FINAL"):
+        if st.button("🚀 GENERAR INFORME"):
             p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
-            pdf_out = generar_pdf("Informe de Mantenimiento", p_data, c_dat, proy, {"f_inicio":str(f_i),"f_termino":str(f_t),"encargado":enc,"cargo":car,"equipo":equ,"detalle":det,"conclu":con}, fotos, img_p, LOGO_PATH)
-            st.download_button("Descargar Informe PDF", data=pdf_out, file_name=f"{proy}.pdf")
+            pdf_out = generar_pdf("Informe Técnico", p_data, c_dat, proy, {"f_inicio":str(f_i),"f_termino":str(f_t),"encargado":enc,"cargo":car,"equipo":equ,"detalle":det,"conclu":con}, fotos, img_p, LOGO_PATH)
+            st.download_button("Descargar PDF", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":
         st.session_state['conectado'] = False; st.rerun()

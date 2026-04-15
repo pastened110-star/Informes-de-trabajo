@@ -101,7 +101,7 @@ if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 if 'user' not in st.session_state: st.session_state['user'] = None
 
 if not st.session_state['conectado']:
-    st.title("⚡ Tecnoelec Pro Cloud")
+    st.title(" Informes de trabajo ")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
@@ -154,7 +154,7 @@ else:
         c_dat = df_g[df_g['Nombre'] == c_sel].iloc[0]
         proy = st.text_input("Proyecto", value="INFORME TECNICO")
         img_p = st.file_uploader("Portada", type=["jpg","png"])
-        with st.expander("📝 Gestión de Obra", expanded=True):
+        with st.expander(" Gestión de Obra", expanded=True):
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Responsable", value=st.session_state['user'])
             with col2: car = st.text_input("Cargo", value="Instalador Eléctrico")

@@ -16,8 +16,10 @@ BORRADOR_FILE = "borrador_actual.json"
 LOGO_PATH = "logo_empresa.png"
 
 def guardar_json(file, datos):
+    # Limpieza crítica: nos aseguramos de que no haya objetos raros
+    datos_limpios = {k: v for k, v in datos.items() if isinstance(v, (str, int, float, bool, list, dict))}
     with open(file, "w") as f:
-        json.dump(datos, f)
+        json.dump(datos_limpios, f)
 
 def cargar_json(file, default):
     if os.path.exists(file):
@@ -39,7 +41,7 @@ if 'conectado' not in st.session_state:
 
 st.markdown("""<style>.stButton>button { width: 100%; border-radius: 5px; background-color: #004a99; color: white; }</style>""", unsafe_allow_html=True)
 
-# --- 3. MOTOR PDF (Diseño Híbrido Word/Recuadros) ---
+# --- 3. MOTOR PDF ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -59,7 +61,6 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos):
     pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 15, proy.upper(), 0, 'C')
     pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, titulo.upper(), 0, 1, 'C')
     pdf.ln(20)
-    # Tabla Control
     pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
     pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
     pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
@@ -74,10 +75,12 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos):
     if fotos:
         pdf.add_page()
         for i, foto in enumerate(fotos):
-            img = Image.open(foto).convert("RGB")
-            temp_name = f"temp_img_{i}.jpg"
-            img.save(temp_name, "JPEG")
-            pdf.image(temp_name, 15, pdf.get_y(), 180, 95); pdf.ln(100)
+            try:
+                img = Image.open(foto).convert("RGB")
+                temp_name = f"temp_img_{i}.jpg"
+                img.save(temp_name, "JPEG")
+                pdf.image(temp_name, 15, pdf.get_y(), 180, 95); pdf.ln(100)
+            except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 # --- 4. INTERFAZ ---
@@ -95,18 +98,22 @@ else:
 
     if op == "Perfil":
         st.header("Configuración de Perfil (Permanente)")
-        st.session_state['perfil']['empresa'] = st.text_input("Empresa", value=st.session_state['perfil']['empresa'])
-        logo_subido = st.file_uploader("Actualizar Logo", type=["png", "jpg", "jpeg"])
+        st.session_state['perfil']['empresa'] = st.text_input("Nombre de la Empresa", value=st.session_state['perfil']['empresa'])
+        logo_subido = st.file_uploader("Subir nuevo Logo", type=["png", "jpg", "jpeg"])
         
-        if st.button("Guardar Perfil"):
-            # Guardamos el texto en el JSON
-            guardar_json(PERFIL_FILE, st.session_state['perfil'])
-            # Guardamos la imagen por separado si se subió una nueva
+        if st.button("Guardar Cambios de Perfil"):
+            # 1. Guardar imagen físicamente si hay una nueva
             if logo_subido:
-                img = Image.open(logo_subido)
-                img = img.convert("RGB")
-                img.save(LOGO_PATH)
-            st.success("¡Perfil guardado! El logo y el nombre se mantendrán.")
+                try:
+                    img = Image.open(logo_subido).convert("RGB")
+                    img.save(LOGO_PATH)
+                    st.toast("Logo actualizado en el servidor")
+                except:
+                    st.error("Error al procesar la imagen")
+            
+            # 2. Guardar datos de texto en JSON (la función ya limpia objetos no deseados)
+            guardar_json(PERFIL_FILE, st.session_state['perfil'])
+            st.success("¡Datos guardados! El nombre y el logo se mantendrán al reiniciar.")
 
     elif op == "Clientes":
         st.header("Gestión de Clientes")
@@ -131,22 +138,22 @@ else:
         if st.session_state['clientes'].empty:
             st.warning("Primero agrega un cliente.")
         else:
-            c_sel = st.selectbox("Cliente", st.session_state['clientes']['Nombre'])
-            proy = st.text_input("Nombre Proyecto")
-            det = st.text_area("Descripción de actividades", value=st.session_state.get('tmp_det', ''), height=200)
-            con = st.text_area("Conclusiones", value=st.session_state.get('tmp_con', ''))
+            c_sel = st.selectbox("Seleccionar Cliente", st.session_state['clientes']['Nombre'])
+            proy = st.text_input("Nombre Proyecto (Referencia)")
+            det = st.text_area("Descripción detallada", value=st.session_state.get('tmp_det', ''), height=200)
+            con = st.text_area("Conclusiones técnicas", value=st.session_state.get('tmp_con', ''))
             
             if st.button("💾 Guardar Borrador"):
                 guardar_json(BORRADOR_FILE, {"detalle": det, "conclu": con})
                 st.toast("Progreso guardado")
 
-            fotos = st.file_uploader("Fotos", accept_multiple_files=True)
+            fotos = st.file_uploader("Adjuntar Evidencia Fotográfica", accept_multiple_files=True)
             
-            if st.button("🚀 FINALIZAR Y DESCARGAR"):
+            if st.button("🚀 FINALIZAR Y DESCARGAR PDF"):
                 c_data = st.session_state['clientes'][st.session_state['clientes']['Nombre'] == c_sel].iloc[0]
-                d_obra = {"f_inicio": "Hoy", "encargado": "David Pastene", "detalle": det, "conclu": con}
+                d_obra = {"f_inicio": str(datetime.date.today()), "encargado": "David Pastene", "detalle": det, "conclu": con}
                 pdf_out = generar_pdf("Informe de Mantenimiento", st.session_state['perfil'], c_data, proy, d_obra, fotos)
-                st.download_button("Descargar PDF", data=pdf_out, file_name=f"{proy}.pdf")
+                st.download_button("Descargar Informe", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":
         st.session_state['conectado'] = False

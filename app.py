@@ -11,11 +11,11 @@ import os
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
-# --- 2. LÓGICA DE ESTILO DINÁMICO (VOLVIENDO AL DISEÑO QUE TE GUSTA) ---
+# --- 2. LÓGICA DE ESTILO DINÁMICO ---
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
-    # ESTO SOLO SE VE EN EL INICIO (CON LA IMAGEN DE OBRA)
+    # DISEÑO INICIO (CON IMAGEN DE FONDO)
     st.markdown("""
         <style>
         .stApp {
@@ -30,19 +30,40 @@ if not st.session_state['conectado']:
         </style>
         """, unsafe_allow_html=True)
 else:
-    # ESTO SE VE ADENTRO (VOLVEMOS AL COLOR AZUL QUE TENÍAS ANTES)
+    # DISEÑO PANEL INTERNO (CORRIGIENDO VISIBILIDAD DEL MENÚ)
     st.markdown("""
         <style>
+        /* Fondo principal oscuro */
         .stApp {
-            background-color: #1a2a40 !important; /* El azul profesional que tenías */
+            background-color: #1a2a40 !important;
             background-image: none !important;
         }
+        
+        /* CORRECCIÓN MENÚ LATERAL (SIDEBAR) */
+        [data-testid="stSidebar"] {
+            background-color: #0e1a2b !important; /* Azul más oscuro para contraste */
+            border-right: 1px solid #4b4d5a;
+        }
+        
+        /* Letras del menú lateral */
+        [data-testid="stSidebar"] .stText, [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {
+            color: #ffffff !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Círculos de selección (Radio buttons) */
+        [data-testid="stSidebar"] .st-bd {
+            color: white !important;
+        }
+
         h1, h2, h3, p, span, label { color: white !important; }
+        
         .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
             background-color: rgba(255, 255, 255, 0.95) !important;
             color: #001f3f !important;
             border-radius: 8px !important;
         }
+        
         .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; }
         </style>
         """, unsafe_allow_html=True)
@@ -70,7 +91,7 @@ def cargar_perfil():
         with open(PERFIL_FILE, "r") as f: return json.load(f)
     return {"empresa": "TECNOELEC SpA"}
 
-# --- 4. MOTOR PDF PROFESIONAL ---
+# --- 4. MOTOR PDF ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -127,7 +148,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
 
 # --- 5. INTERFAZ ---
 if not st.session_state['conectado']:
-    st.title("INFORMES DE TRABAJO")
+    st.title("⚡ Tecnoelec Pro Cloud")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
@@ -146,6 +167,7 @@ if not st.session_state['conectado']:
                     st.success("Cuenta creada."); st.rerun()
                 else: st.warning("Error en el registro.")
 else:
+    # Barra lateral con colores corregidos
     st.sidebar.markdown(f"### 👤 Bienvenido\n**{st.session_state['user']}**")
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
     

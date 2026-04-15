@@ -134,7 +134,7 @@ if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 if 'user' not in st.session_state: st.session_state['user'] = None
 
 if not st.session_state['conectado']:
-    st.title("⚡ Tecnoelec Pro Cloud")
+    st.title("Informes de trabajo ")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")

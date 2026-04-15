@@ -8,43 +8,45 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN Y ESTILO (MEJORADO PARA MÓVIL) ---
+# --- 1. CONFIGURACIÓN Y ESTILO (DISEÑO INDUSTRIAL) ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
-# CSS para fondo de obra y letras legibles
+# Fondo con imagen de obra/planos y superposición oscura para lectura
 st.markdown("""
     <style>
     .stApp {
-        background-image: linear-gradient(rgba(0, 20, 50, 0.85), rgba(0, 20, 50, 0.85)), 
-        url("https://www.transparenttextures.com/patterns/blueprint.png");
+        background-image: linear-gradient(rgba(0, 15, 40, 0.8), rgba(0, 15, 40, 0.8)), 
+        url("https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop");
         background-attachment: fixed;
         background-size: cover;
     }
     h1, h2, h3, p, span, label {
         color: white !important;
-        text-shadow: 1px 1px 2px black;
+        text-shadow: 1px 1px 3px black;
     }
+    /* Estilo para los cuadros de entrada de texto */
     .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        color: #002b5c !important;
-        border-radius: 5px !important;
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        color: #001f3f !important;
+        border-radius: 8px !important;
+        border: 2px solid #ffcc00 !important;
     }
-    .stTab {
-        background-color: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 10px 10px 0 0;
-        color: white !important;
-    }
-    [data-testid="stExpander"] {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 10px !important;
-    }
+    /* Botón Amarillo 'Eléctrico' */
     .stButton>button {
         background-color: #ffcc00 !important;
-        color: #002b5c !important;
-        border: none !important;
+        color: #001f3f !important;
+        border-radius: 8px !important;
         font-weight: bold !important;
-        height: 3em !important;
+        border: none !important;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #e6b800 !important;
+        transform: scale(1.02);
+    }
+    /* Menú lateral transparente */
+    [data-testid="stSidebar"] {
+        background-color: rgba(0, 31, 63, 0.8) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -72,7 +74,7 @@ def cargar_perfil():
         with open(PERFIL_FILE, "r") as f: return json.load(f)
     return {"empresa": "TECNOELEC SpA"}
 
-# --- 3. MOTOR PDF ---
+# --- 3. MOTOR PDF PROFESIONAL ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -151,26 +153,27 @@ if not st.session_state['conectado']:
                     st.success("Cuenta creada."); st.rerun()
                 else: st.warning("Error en el registro.")
 else:
-    st.sidebar.write(f"👤 Bienvenido: **{st.session_state['user']}**")
+    # Barra lateral
+    st.sidebar.markdown(f"### 👤 Bienvenido\n**{st.session_state['user']}**")
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
     
     if op == "Perfil Empresa":
         st.header("Identidad Corporativa")
         p_data = cargar_perfil()
         emp_n = st.text_input("Nombre de la Empresa", value=p_data['empresa'])
-        logo_f = st.file_uploader("Subir Logo (PNG/JPG)", type=["png","jpg","jpeg"])
+        logo_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
         if st.button("Guardar Perfil"):
             with open(PERFIL_FILE, "w") as f: json.dump({"empresa": emp_n}, f)
             if logo_f: Image.open(logo_f).convert("RGB").save(LOGO_PATH)
-            st.success("Datos actualizados.")
+            st.success("Perfil actualizado.")
         if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200)
 
     elif op == "Clientes Cloud":
-        st.header("Base de Datos de Clientes")
+        st.header("Base de Datos Cloud")
         df_g = obtener_clientes()
         with st.form("fc", clear_on_submit=True):
             n = st.text_input("Nombre Cliente"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar"):
+            if st.form_submit_button("Guardar en la Nube"):
                 if n and r:
                     conn.update(data=pd.concat([df_g, pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])], ignore_index=True))
                     st.success("Guardado"); st.rerun()
@@ -179,26 +182,27 @@ else:
     elif op == "Nuevo Informe":
         st.header("Generar Informe Técnico RIC")
         df_g = obtener_clientes()
-        if df_g.empty: st.warning("Sin clientes."); st.stop()
+        if df_g.empty: st.warning("Sin clientes registrados."); st.stop()
         c_sel = st.selectbox("Cliente", df_g['Nombre'].tolist())
         c_dat = df_g[df_g['Nombre'] == c_sel].iloc[0]
-        proy = st.text_input("Proyecto", value="INFORME TECNICO")
-        img_p = st.file_uploader("Portada", type=["jpg","png"])
+        proy = st.text_input("Nombre Proyecto", value="INSTALACION ELECTRICA")
+        img_p = st.file_uploader("Portada Proyecto", type=["jpg","png"])
         with st.expander("📝 Gestión de Obra", expanded=True):
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Responsable", value=st.session_state['user'])
-            with col2: car = st.text_input("Cargo", value="Instalador Eléctrico")
+            with col2: car = st.text_input("Cargo", value="Instalador Autorizado")
             equipo = []
             for i in range(1, 3):
                 c1, c2 = st.columns(2)
                 with c1: ne = st.text_input(f"Personal {i}", key=f"n{i}"); ce = st.text_input(f"Cargo {i}", key=f"c{i}")
                 equipo.append({"nombre": ne, "cargo": ce})
-        det = st.text_area("Trabajo Realizado"); con = st.text_area("Conclusiones")
+        det = st.text_area("Trabajo Realizado", height=150)
+        con = st.text_area("Conclusiones")
         fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
         if st.button("🚀 GENERAR PDF"):
             p_conf = cargar_perfil()
             pdf_out = generar_pdf("Informe Técnico", p_conf, c_dat, proy, {"encargado":enc, "cargo":car, "equipo_lista": equipo, "detalle":det, "conclu":con}, fotos, img_p, LOGO_PATH)
-            st.download_button("Descargar PDF", data=pdf_out, file_name=f"{proy}.pdf")
+            st.download_button("Descargar Informe", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":
         st.session_state['conectado'] = False; st.rerun()

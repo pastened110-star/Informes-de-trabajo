@@ -7,8 +7,35 @@ import os
 import datetime
 import json
 
-# --- 1. CONFIGURACIÓN Y CONEXIÓN ---
-st.set_page_config(page_title="Tecnoelec Cloud Pro", layout="wide")
+# --- 1. CONFIGURACIÓN Y DISEÑO DE FONDO ---
+st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
+
+# CSS para fondo con degradado y estilo moderno
+st.markdown("""
+    <style>
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    .main-box {
+        background-color: white;
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0px 10px 25px rgba(0,0,0,0.1);
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        background-color: #004a99;
+        color: white;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #003366;
+        border: 1px solid #004a99;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # Conexión persistente a la nube
 try:
@@ -18,12 +45,10 @@ except:
     df_global = pd.DataFrame(columns=['UsuarioID', 'Nombre', 'RUT', 'Direccion', 'Contacto'])
 
 # --- 2. GESTIÓN DE SESIÓN ---
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
-if 'user_email' not in st.session_state:
-    st.session_state['user_email'] = None
+if 'conectado' not in st.session_state:
+    st.session_state['conectado'] = False
 
-# --- 3. MOTOR PDF (Diseño Profesional con Celdas e Inmune a errores) ---
+# --- 3. MOTOR PDF PROFESIONAL ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -43,33 +68,25 @@ def limpiar(t):
 def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p):
     pdf = PDF_Pro()
     pdf.set_auto_page_break(auto=True, margin=20)
-    
-    # --- PÁGINA 1: PORTADA ---
     pdf.add_page()
     if os.path.exists(logo_p): pdf.image(logo_p, 10, 10, 30)
     pdf.set_y(45); pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
     pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, limpiar(titulo).upper(), 0, 1, 'C')
-    
     if img_portada:
         try:
-            img_p = Image.open(img_portada).convert("RGB")
-            img_p.save("temp_portada.jpg", "JPEG")
-            pdf.image("temp_portada.jpg", x=45, y=85, w=120, h=90) 
+            img_p = Image.open(img_portada).convert("RGB"); img_p.save("temp_p.jpg", "JPEG")
+            pdf.image("temp_p.jpg", x=45, y=85, w=120, h=90) 
         except: pass
-    
     pdf.set_y(205)
     pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
     pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
     pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
     pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
     pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
-    
-    # --- PÁGINA 2: DESARROLLO ---
     pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" Cliente: {limpiar(cliente['Nombre'])}", 1); pdf.cell(95, 7, f" Contacto: {limpiar(cliente['Contacto'])}", 1, 1)
     pdf.cell(0, 7, f" Direccion: {limpiar(cliente['Direccion'])}", 1, 1); pdf.ln(5)
-    
     pdf.crear_seccion_titulo("II. GESTION DE OBRA")
     pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " FECHA DE INICIO", 1, 0); pdf.cell(95, 7, " FECHA DE TERMINO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['f_inicio']}", 1, 0); pdf.cell(95, 7, f" {datos['f_termino']}", 1, 1)
@@ -77,10 +94,8 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {limpiar(datos['encargado'])}", 1, 0); pdf.cell(95, 7, f" {limpiar(datos['cargo'])}", 1, 1)
     pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO (EQUIPO TRABAJO)", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
-    
     pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES"); pdf.multi_cell(0, 6, f" {limpiar(datos['detalle'])}", 1); pdf.ln(5)
     pdf.crear_seccion_titulo("IV. CONCLUSIONES"); pdf.multi_cell(0, 6, f" {limpiar(datos['conclu'])}", 1)
-    
     if fotos:
         pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "REGISTRO FOTOGRAFICO", 0, 1, 'L')
         for i, f in enumerate(fotos):
@@ -91,58 +106,65 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 4. INTERFAZ ---
-if not st.session_state['autenticado']:
-    st.title("⚡ Tecnoelec Cloud: SaaS de Ingeniería")
-    u = st.text_input("Correo"); p = st.text_input("Clave", type="password")
-    if st.button("Entrar"):
-        if u and p:
-            st.session_state['autenticado'] = True
-            st.session_state['user_email'] = u
+# --- 4. INTERFAZ DE ACCESO ---
+if not st.session_state['conectado']:
+    st.markdown('<div class="main-box">', unsafe_allow_html=True)
+    st.title("⚡ Tecnoelec Pro Cloud")
+    st.subheader("Acceso al Sistema")
+    u = st.text_input("Usuario")
+    p = st.text_input("Clave", type="password")
+    if st.button("Ingresar al Tablero"):
+        if u == "admin" and p == "tecnoelec2026":
+            st.session_state['conectado'] = True
             st.rerun()
+        else:
+            st.error("Credenciales incorrectas")
+    st.markdown('</div>', unsafe_allow_html=True)
+
 else:
-    safe_user = st.session_state['user_email'].replace("@","_").replace(".","_")
-    user_folder = f"data_{safe_user}"
+    # Definimos carpetas base (Para Tecnoelec)
+    user_folder = "data_admin"
     if not os.path.exists(user_folder): os.makedirs(user_folder)
-    
     logo_p = os.path.join(user_folder, "logo.jpg")
     perf_p = os.path.join(user_folder, "perfil.json")
-    bord_p = os.path.join(user_folder, "borrador.json")
 
-    op = st.sidebar.radio(f"Sesión: {st.session_state['user_email']}", ["Perfil Empresa", "Mis Clientes", "Nuevo Informe", "Salir"])
+    st.sidebar.title("Menú de Navegación")
+    op = st.sidebar.radio("", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
 
     if op == "Salir":
-        st.session_state['autenticado'] = False; st.rerun()
+        st.session_state['conectado'] = False; st.rerun()
 
     elif op == "Perfil Empresa":
         st.header("Marca Corporativa")
-        p_data = cargar_json(perf_p, {"empresa": "Mi Empresa", "rut": ""}) if os.path.exists(perf_p) else {"empresa": "Mi Empresa", "rut": ""}
+        # Carga automática de datos guardados
+        if os.path.exists(perf_p):
+            with open(perf_p, "r") as f: p_data = json.load(f)
+        else: p_data = {"empresa": "TECNOELEC SpA", "rut": ""}
+        
         emp = st.text_input("Empresa", value=p_data['empresa'])
         rut = st.text_input("RUT", value=p_data['rut'])
         log = st.file_uploader("Logo", type=["png","jpg"])
-        if st.button("Guardar"):
+        if st.button("Guardar Cambios"):
             with open(perf_p, "w") as f: json.dump({"empresa": emp, "rut": rut}, f)
             if log: Image.open(log).convert("RGB").save(logo_p)
             st.success("Perfil Guardado")
 
-    elif op == "Mis Clientes":
-        st.header("Clientes en la Nube")
-        mis_c = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
+    elif op == "Clientes Cloud":
+        st.header("Base de Datos en Google Sheets")
         with st.form("fc"):
             n = st.text_input("Nombre"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar"):
-                nf = pd.DataFrame([[st.session_state['user_email'], n, r, d, c]], columns=['UsuarioID', 'Nombre', 'RUT', 'Direccion', 'Contacto'])
+            if st.form_submit_button("Guardar en la Nube"):
+                nf = pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
                 conn.update(data=pd.concat([df_global, nf], ignore_index=True))
-                st.success("Guardado en Google Sheets"); st.rerun()
-        st.dataframe(mis_c[['Nombre','RUT','Direccion','Contacto']])
+                st.success("Guardado permanente"); st.rerun()
+        st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Crear Informe")
-        mis_c = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
-        if mis_c.empty: st.warning("Crea un cliente primero"); st.stop()
+        st.header("Generar Documento Técnico")
+        if df_global.empty: st.warning("Agrega un cliente primero"); st.stop()
         
-        c_sel = st.selectbox("Cliente", mis_c['Nombre'])
-        c_dat = mis_c[mis_c['Nombre'] == c_sel].iloc[0]
+        c_sel = st.selectbox("Cliente", df_global['Nombre'])
+        c_dat = df_global[df_global['Nombre'] == c_sel].iloc[0]
         proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
         img_p = st.file_uploader("Imagen Portada", type=["jpg","png"])
         
@@ -157,7 +179,9 @@ else:
         fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
         
         if st.button("🚀 GENERAR PDF"):
-            p_data = cargar_json(perf_p, {"empresa": "Mi Empresa", "rut": ""})
+            if os.path.exists(perf_p):
+                with open(perf_p, "r") as f: p_data = json.load(f)
+            else: p_data = {"empresa": "TECNOELEC SpA", "rut": ""}
             d_obra = {"f_inicio": str(f_i), "f_termino": str(f_ter), "encargado": enc, "cargo": car, "equipo": equ, "detalle": det, "conclu": con}
             pdf_out = generar_pdf("Informe de Mantenimiento", p_data, c_dat, proy, d_obra, fotos, img_p, logo_p)
             st.download_button("Descargar", data=pdf_out, file_name=f"{proy}.pdf")

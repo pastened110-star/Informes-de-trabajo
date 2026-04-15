@@ -1,2 +1,6 @@
 streamlit
 fpdf
+Pillow
+gspread
+oauth2client
+streamlit-gsheets

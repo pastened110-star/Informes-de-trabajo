@@ -8,17 +8,48 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN Y ESTILO (MEJORADO PARA MÓVIL) ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
+# CSS para fondo de obra y letras legibles
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
-    .stButton>button { width: 100%; border-radius: 8px; background-color: #004a99; color: white; font-weight: bold; }
+    .stApp {
+        background-image: linear-gradient(rgba(0, 20, 50, 0.85), rgba(0, 20, 50, 0.85)), 
+        url("https://www.transparenttextures.com/patterns/blueprint.png");
+        background-attachment: fixed;
+        background-size: cover;
+    }
+    h1, h2, h3, p, span, label {
+        color: white !important;
+        text-shadow: 1px 1px 2px black;
+    }
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        color: #002b5c !important;
+        border-radius: 5px !important;
+    }
+    .stTab {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px 10px 0 0;
+        color: white !important;
+    }
+    [data-testid="stExpander"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 10px !important;
+    }
+    .stButton>button {
+        background-color: #ffcc00 !important;
+        color: #002b5c !important;
+        border: none !important;
+        font-weight: bold !important;
+        height: 3em !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN Y DATOS ---
+# --- 2. CONEXIÓN ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def obtener_usuarios():
@@ -41,7 +72,7 @@ def cargar_perfil():
         with open(PERFIL_FILE, "r") as f: return json.load(f)
     return {"empresa": "TECNOELEC SpA"}
 
-# --- 3. MOTOR PDF PROFESIONAL ---
+# --- 3. MOTOR PDF ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -101,7 +132,7 @@ if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 if 'user' not in st.session_state: st.session_state['user'] = None
 
 if not st.session_state['conectado']:
-    st.title(" Informes de trabajo ")
+    st.title("⚡ Tecnoelec Pro Cloud")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
@@ -132,29 +163,28 @@ else:
             with open(PERFIL_FILE, "w") as f: json.dump({"empresa": emp_n}, f)
             if logo_f: Image.open(logo_f).convert("RGB").save(LOGO_PATH)
             st.success("Datos actualizados.")
-        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200, caption="Logo configurado")
+        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200)
 
     elif op == "Clientes Cloud":
         st.header("Base de Datos de Clientes")
-        # (Formulario de clientes se mantiene igual)
         df_g = obtener_clientes()
         with st.form("fc", clear_on_submit=True):
-            n = st.text_input("Nombre"); r = st.text_input("RUT"); d = st.text_input("Direccion"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar Cliente"):
+            n = st.text_input("Nombre Cliente"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
+            if st.form_submit_button("Guardar"):
                 if n and r:
                     conn.update(data=pd.concat([df_g, pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])], ignore_index=True))
                     st.success("Guardado"); st.rerun()
         st.dataframe(df_g, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico")
+        st.header("Generar Informe Técnico RIC")
         df_g = obtener_clientes()
         if df_g.empty: st.warning("Sin clientes."); st.stop()
         c_sel = st.selectbox("Cliente", df_g['Nombre'].tolist())
         c_dat = df_g[df_g['Nombre'] == c_sel].iloc[0]
         proy = st.text_input("Proyecto", value="INFORME TECNICO")
         img_p = st.file_uploader("Portada", type=["jpg","png"])
-        with st.expander(" Gestión de Obra", expanded=True):
+        with st.expander("📝 Gestión de Obra", expanded=True):
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Responsable", value=st.session_state['user'])
             with col2: car = st.text_input("Cargo", value="Instalador Eléctrico")

@@ -8,50 +8,47 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN Y ESTILO (DISEÑO INDUSTRIAL) ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
-# Fondo con imagen de obra/planos y superposición oscura para lectura
-st.markdown("""
-    <style>
-    .stApp {
-        background-image: linear-gradient(rgba(0, 15, 40, 0.8), rgba(0, 15, 40, 0.8)), 
-        url("https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop");
-        background-attachment: fixed;
-        background-size: cover;
-    }
-    h1, h2, h3, p, span, label {
-        color: white !important;
-        text-shadow: 1px 1px 3px black;
-    }
-    /* Estilo para los cuadros de entrada de texto */
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-        background-color: rgba(255, 255, 255, 0.95) !important;
-        color: #001f3f !important;
-        border-radius: 8px !important;
-        border: 2px solid #ffcc00 !important;
-    }
-    /* Botón Amarillo 'Eléctrico' */
-    .stButton>button {
-        background-color: #ffcc00 !important;
-        color: #001f3f !important;
-        border-radius: 8px !important;
-        font-weight: bold !important;
-        border: none !important;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #e6b800 !important;
-        transform: scale(1.02);
-    }
-    /* Menú lateral transparente */
-    [data-testid="stSidebar"] {
-        background-color: rgba(0, 31, 63, 0.8) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 2. LÓGICA DE ESTILO DINÁMICO ---
+if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
-# --- 2. CONEXIÓN ---
+if not st.session_state['conectado']:
+    # ESTILO PARA INICIO DE SESIÓN (CON IMAGEN)
+    st.markdown("""
+        <style>
+        .stApp {
+            background-image: linear-gradient(rgba(0, 15, 40, 0.8), rgba(0, 15, 40, 0.8)), 
+            url("https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop");
+            background-attachment: fixed;
+            background-size: cover;
+        }
+        h1, h2, h3, p, span, label { color: white !important; text-shadow: 1px 1px 3px black; }
+        .stTextInput>div>div>input { background-color: white !important; color: #001f3f !important; border-radius: 8px !important; }
+        .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; border-radius: 8px !important; }
+        </style>
+        """, unsafe_allow_html=True)
+else:
+    # ESTILO PARA PANEL INTERNO (FONDO SÓLIDO Y LIMPIO)
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0e1117 !important; /* Fondo oscuro sólido profesional */
+            background-image: none !important;
+        }
+        h1, h2, h3, p, span, label { color: #f0f2f6 !important; }
+        /* Cuadros de texto limpios para trabajo */
+        .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
+            background-color: #262730 !important;
+            color: white !important;
+            border: 1px solid #4b4d5a !important;
+        }
+        .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; }
+        </style>
+        """, unsafe_allow_html=True)
+
+# --- 3. CONEXIÓN ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def obtener_usuarios():
@@ -74,7 +71,7 @@ def cargar_perfil():
         with open(PERFIL_FILE, "r") as f: return json.load(f)
     return {"empresa": "TECNOELEC SpA"}
 
-# --- 3. MOTOR PDF PROFESIONAL ---
+# --- 4. MOTOR PDF ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -129,12 +126,9 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 4. INTERFAZ ---
-if 'conectado' not in st.session_state: st.session_state['conectado'] = False
-if 'user' not in st.session_state: st.session_state['user'] = None
-
+# --- 5. INTERFAZ ---
 if not st.session_state['conectado']:
-    st.title("Informes de trabajo ")
+    st.title("⚡ Tecnoelec Pro Cloud")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
@@ -153,7 +147,6 @@ if not st.session_state['conectado']:
                     st.success("Cuenta creada."); st.rerun()
                 else: st.warning("Error en el registro.")
 else:
-    # Barra lateral
     st.sidebar.markdown(f"### 👤 Bienvenido\n**{st.session_state['user']}**")
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
     
@@ -161,10 +154,10 @@ else:
         st.header("Identidad Corporativa")
         p_data = cargar_perfil()
         emp_n = st.text_input("Nombre de la Empresa", value=p_data['empresa'])
-        logo_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
+        log_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
         if st.button("Guardar Perfil"):
             with open(PERFIL_FILE, "w") as f: json.dump({"empresa": emp_n}, f)
-            if logo_f: Image.open(logo_f).convert("RGB").save(LOGO_PATH)
+            if log_f: Image.open(log_f).convert("RGB").save(LOGO_PATH)
             st.success("Perfil actualizado.")
         if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200)
 

@@ -18,11 +18,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN SEGURA ---
+# --- 2. CONEXIÓN SEGURA (Google Service Account) ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_raw = conn.read(ttl=0)
     if not df_raw.empty:
+        # Filtramos para tener solo las 4 columnas de la base de datos
         df_global = df_raw.iloc[:, :4].dropna(subset=[df_raw.columns[0]])
         df_global.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
     else:
@@ -66,7 +67,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf = PDF_Pro()
     pdf.set_auto_page_break(auto=True, margin=25)
     
-    # PORTADA
+    # Portada
     pdf.add_page()
     if os.path.exists(logo_p): pdf.image(logo_p, 10, 10, 30)
     pdf.set_y(45); pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
@@ -83,7 +84,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
     pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
     
-    # DESARROLLO
+    # Detalle Técnico
     pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" Cliente: {limpiar(cliente['Nombre'])}", 1); pdf.cell(95, 7, f" Contacto: {limpiar(cliente['Contacto'])}", 1, 1)
@@ -120,17 +121,19 @@ if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
     st.title("⚡ Tecnoelec Pro Cloud")
-    u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
+    u = st.text_input("Usuario")
+    p = st.text_input("Clave", type="password")
     if st.button("Ingresar"):
         if u == "admin" and p == "tecnoelec2026":
-            st.session_state['conectado'] = True; st.rerun()
-        else: st.error("Acceso denegado")
+            st.session_state['conectado'] = True
+            st.rerun()
+        else:
+            st.error("Acceso denegado. Credenciales incorrectas.")
 else:
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
 
     if op == "Perfil Empresa":
         st.header("Marca Corporativa")
-        # --- CORRECCIÓN SECCIÓN PERFIL ---
         p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
         emp = st.text_input("Nombre Empresa", value=p_data['empresa'])
         log = st.file_uploader("Subir Logo Corporativo", type=["png","jpg","jpeg"])
@@ -138,63 +141,66 @@ else:
         if st.button("Guardar Cambios"):
             guardar_json(PERFIL_FILE, {"empresa": emp})
             if log:
-                try:
-                    img_log = Image.open(log).convert("RGB")
-                    img_log.save(LOGO_PATH)
-                except: pass
-            st.success("Perfil y Logo actualizados correctamente")
+                img_log = Image.open(log).convert("RGB")
+                img_log.save(LOGO_PATH)
+            st.success("Configuración de empresa guardada.")
         
         if os.path.exists(LOGO_PATH):
-            st.subheader("Logo Actual")
-            st.image(LOGO_PATH, width=200)
+            st.image(LOGO_PATH, width=200, caption="Logo Actual")
 
     elif op == "Clientes Cloud":
-        st.header("Gestión de Clientes")
+        st.header("Base de Datos de Clientes")
         with st.form("fc", clear_on_submit=True):
-            n = st.text_input("Nombre Cliente"); r = st.text_input("RUT")
-            d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar"):
+            n = st.text_input("Nombre Cliente")
+            r = st.text_input("RUT")
+            d = st.text_input("Dirección")
+            c = st.text_input("Contacto")
+            if st.form_submit_button("Guardar en la Nube"):
                 if n and r:
                     try:
                         df_actual = conn.read(ttl=0).iloc[:, :4]
                         df_actual.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
                         nuevo = pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
                         conn.update(data=pd.concat([df_actual, nuevo], ignore_index=True))
-                        st.success(f"¡{n} guardado!"); st.rerun()
-                    except Exception as e: st.error(f"Error: {e}")
+                        st.success(f"¡{n} registrado!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al escribir en la nube: {e}")
         st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico RIC")
-        if df_global.empty: st.warning("Registre un cliente primero."); st.stop()
-        
-        c_sel = st.selectbox("Seleccionar Cliente", df_global['Nombre'].tolist())
-        c_dat = df_global[df_global['Nombre'] == c_sel].iloc[0]
-        proy = st.text_input("Nombre del Proyecto", value="MANTENCION ELECTRICA")
-        img_p = st.file_uploader("Portada", type=["jpg","png"])
-        
-        with st.expander("📝 Gestión de Obra y Personal", expanded=True):
-            st.subheader("Responsable Técnico")
-            col1, col2 = st.columns(2)
-            with col1: enc = st.text_input("Nombre", value="David Pastene")
-            with col2: car = st.text_input("Cargo", value="Oficina Técnica / Instalador Autorizado SEC")
+        st.header("Generar Nuevo Informe Técnico RIC")
+        if df_global.empty:
+            st.warning("No hay clientes en la base de datos.")
+        else:
+            c_sel = st.selectbox("Seleccionar Cliente", df_global['Nombre'].tolist())
+            c_dat = df_global[df_global['Nombre'] == c_sel].iloc[0]
+            proy = st.text_input("Nombre del Proyecto", value="MANTENCION ELECTRICA")
+            img_p = st.file_uploader("Imagen de Portada", type=["jpg","png"])
             
-            st.subheader("Equipo de Trabajo Adicional")
-            equipo_lista = []
-            for i in range(1, 3):
-                c_eq1, c_eq2 = st.columns(2)
-                with c_eq1: nom_e = st.text_input(f"Nombre Personal {i}", key=f"n{i}")
-                with c_eq2: car_e = st.text_input(f"Cargo Personal {i}", key=f"c{i}")
-                equipo_lista.append({"nombre": nom_e, "cargo": car_e})
+            with st.expander("📝 Gestión de Obra y Personal", expanded=True):
+                st.subheader("Responsable Técnico")
+                col1, col2 = st.columns(2)
+                with col1: enc = st.text_input("Nombre", value="David Pastene")
+                with col2: car = st.text_input("Cargo", value="Oficina Técnica / Instalador Autorizado SEC")
+                
+                st.subheader("Equipo de Trabajo Adicional")
+                equipo_lista = []
+                for i in range(1, 3):
+                    c_eq1, c_eq2 = st.columns(2)
+                    with c_eq1: nom_e = st.text_input(f"Nombre Personal {i}", key=f"n{i}")
+                    with c_eq2: car_e = st.text_input(f"Cargo Personal {i}", key=f"c{i}")
+                    equipo_lista.append({"nombre": nom_e, "cargo": car_e})
             
-        det = st.text_area("Trabajo Realizado", height=150)
-        con = st.text_area("Conclusiones")
-        fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
-        
-        if st.button("🚀 GENERAR PDF"):
-            p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
-            pdf_out = generar_pdf("Informe Técnico", p_data, c_dat, proy, {"encargado":enc, "cargo":car, "equipo_lista": equipo_lista, "detalle":det, "conclu":con}, fotos, img_p, LOGO_PATH)
-            st.download_button("Descargar Informe", data=pdf_out, file_name=f"{proy}.pdf")
+            det = st.text_area("Trabajo Realizado (Actividades)", height=150)
+            con = st.text_area("Conclusiones y Recomendaciones")
+            fotos = st.file_uploader("Anexo Fotográfico", accept_multiple_files=True)
+            
+            if st.button("🚀 GENERAR PDF"):
+                p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
+                pdf_out = generar_pdf("Informe Técnico", p_data, c_dat, proy, {"encargado":enc, "cargo":car, "equipo_lista": equipo_lista, "detalle":det, "conclu":con}, fotos, img_p, LOGO_PATH)
+                st.download_button("Descargar Informe", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":
-        st.session_state['conectado'] = False; st.rerun()
+        st.session_state['conectado'] = False
+        st.rerun()

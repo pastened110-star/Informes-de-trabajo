@@ -7,13 +7,13 @@ import os
 import datetime
 import json
 
-# --- 1. CONFIGURACIÓN Y CONEXIÓN CLOUD ---
-st.set_page_config(page_title="Tecnoelec SaaS Pro", layout="wide")
+# --- 1. CONFIGURACIÓN Y CONEXIÓN ---
+st.set_page_config(page_title="Tecnoelec Cloud Pro", layout="wide")
 
-# Conectamos con Google Sheets para que los clientes sean eternos
+# Conexión persistente a la nube
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_global = conn.read(ttl=0) # ttl=0 para datos siempre frescos
+    df_global = conn.read(ttl=0)
 except:
     df_global = pd.DataFrame(columns=['UsuarioID', 'Nombre', 'RUT', 'Direccion', 'Contacto'])
 
@@ -23,7 +23,7 @@ if 'autenticado' not in st.session_state:
 if 'user_email' not in st.session_state:
     st.session_state['user_email'] = None
 
-# --- 3. MOTOR PDF (Diseño Profesional con Celdas) ---
+# --- 3. MOTOR PDF (Diseño Profesional con Celdas e Inmune a errores) ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -40,94 +40,124 @@ def limpiar(t):
     for o, r in cambios.items(): t = t.replace(o, r)
     return t.encode('latin-1', 'ignore').decode('latin-1')
 
-# --- 4. INTERFAZ DE ACCESO ---
-if not st.session_state['autenticado']:
-    st.title("⚡ Generador de Informes Eléctricos Pro")
-    tab1, tab2 = st.tabs(["Ingresar", "Solicitar Cuenta"])
+def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p):
+    pdf = PDF_Pro()
+    pdf.set_auto_page_break(auto=True, margin=20)
     
-    with tab1:
-        u = st.text_input("Correo Electrónico")
-        p = st.text_input("Contraseña", type="password")
-        if st.button("Iniciar Sesión"):
-            # Validación simple (puedes mejorarla con una tabla de usuarios)
-            if u and p:
-                st.session_state['autenticado'] = True
-                st.session_state['user_email'] = u
-                st.rerun()
-    with tab2:
-        st.write("Si eres un instalador externo, contacta a admin@tecnoelec.cl para habilitar tu espacio de trabajo.")
+    # --- PÁGINA 1: PORTADA ---
+    pdf.add_page()
+    if os.path.exists(logo_p): pdf.image(logo_p, 10, 10, 30)
+    pdf.set_y(45); pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
+    pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, limpiar(titulo).upper(), 0, 1, 'C')
+    
+    if img_portada:
+        try:
+            img_p = Image.open(img_portada).convert("RGB")
+            img_p.save("temp_portada.jpg", "JPEG")
+            pdf.image("temp_portada.jpg", x=45, y=85, w=120, h=90) 
+        except: pass
+    
+    pdf.set_y(205)
+    pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
+    pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
+    pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
+    pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
+    pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
+    
+    # --- PÁGINA 2: DESARROLLO ---
+    pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
+    pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
+    pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" Cliente: {limpiar(cliente['Nombre'])}", 1); pdf.cell(95, 7, f" Contacto: {limpiar(cliente['Contacto'])}", 1, 1)
+    pdf.cell(0, 7, f" Direccion: {limpiar(cliente['Direccion'])}", 1, 1); pdf.ln(5)
+    
+    pdf.crear_seccion_titulo("II. GESTION DE OBRA")
+    pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " FECHA DE INICIO", 1, 0); pdf.cell(95, 7, " FECHA DE TERMINO", 1, 1)
+    pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['f_inicio']}", 1, 0); pdf.cell(95, 7, f" {datos['f_termino']}", 1, 1)
+    pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " RESPONSABLE TECNICO", 1, 0); pdf.cell(95, 7, " CARGO", 1, 1)
+    pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {limpiar(datos['encargado'])}", 1, 0); pdf.cell(95, 7, f" {limpiar(datos['cargo'])}", 1, 1)
+    pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO (EQUIPO TRABAJO)", 1, 1)
+    pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
+    
+    pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES"); pdf.multi_cell(0, 6, f" {limpiar(datos['detalle'])}", 1); pdf.ln(5)
+    pdf.crear_seccion_titulo("IV. CONCLUSIONES"); pdf.multi_cell(0, 6, f" {limpiar(datos['conclu'])}", 1)
+    
+    if fotos:
+        pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "REGISTRO FOTOGRAFICO", 0, 1, 'L')
+        for i, f in enumerate(fotos):
+            try:
+                img = Image.open(f).convert("RGB"); img.save(f"t{i}.jpg", "JPEG")
+                if pdf.get_y() > 180: pdf.add_page()
+                pdf.image(f"t{i}.jpg", 15, pdf.get_y(), 180, 95); pdf.ln(105)
+            except: pass
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 5. PANEL DE CONTROL (SaaS) ---
+# --- 4. INTERFAZ ---
+if not st.session_state['autenticado']:
+    st.title("⚡ Tecnoelec Cloud: SaaS de Ingeniería")
+    u = st.text_input("Correo"); p = st.text_input("Clave", type="password")
+    if st.button("Entrar"):
+        if u and p:
+            st.session_state['autenticado'] = True
+            st.session_state['user_email'] = u
+            st.rerun()
 else:
-    # Creamos carpeta privada para este usuario si no existe
-    # Reemplazamos caracteres raros del email para la carpeta
-    safe_email = st.session_state['user_email'].replace("@", "_").replace(".", "_")
-    user_folder = f"user_data_{safe_email}"
+    safe_user = st.session_state['user_email'].replace("@","_").replace(".","_")
+    user_folder = f"data_{safe_user}"
     if not os.path.exists(user_folder): os.makedirs(user_folder)
     
-    logo_path = os.path.join(user_folder, "logo.jpg")
-    perfil_path = os.path.join(user_folder, "perfil.json")
+    logo_p = os.path.join(user_folder, "logo.jpg")
+    perf_p = os.path.join(user_folder, "perfil.json")
+    bord_p = os.path.join(user_folder, "borrador.json")
 
-    op = st.sidebar.radio(f"Bienvenido {st.session_state['user_email']}", 
-                         ["Mi Perfil Empresa", "Mis Clientes", "Nuevo Informe", "Cerrar Sesión"])
+    op = st.sidebar.radio(f"Sesión: {st.session_state['user_email']}", ["Perfil Empresa", "Mis Clientes", "Nuevo Informe", "Salir"])
 
-    if op == "Cerrar Sesión":
-        st.session_state['autenticado'] = False
-        st.rerun()
+    if op == "Salir":
+        st.session_state['autenticado'] = False; st.rerun()
 
-    elif op == "Mi Perfil Empresa":
-        st.header("Configuración de Marca Corporativa")
-        # Cargar perfil privado
-        if os.path.exists(perfil_path):
-            with open(perfil_path, "r") as f: p_data = json.load(f)
-        else: p_data = {"empresa": "Mi Empresa", "rut": ""}
-
-        nom_emp = st.text_input("Nombre Fantasía Empresa", value=p_data['empresa'])
-        rut_emp = st.text_input("RUT Empresa", value=p_data['rut'])
-        logo_up = st.file_uploader("Logo para tus Informes", type=["png", "jpg", "jpeg"])
-        
-        if st.button("Guardar Perfil"):
-            with open(perfil_path, "w") as f: 
-                json.dump({"empresa": nom_emp, "rut": rut_emp}, f)
-            if logo_up:
-                Image.open(logo_up).convert("RGB").save(logo_path)
-            st.success("Configuración guardada. Tus informes saldrán con esta marca.")
+    elif op == "Perfil Empresa":
+        st.header("Marca Corporativa")
+        p_data = cargar_json(perf_p, {"empresa": "Mi Empresa", "rut": ""}) if os.path.exists(perf_p) else {"empresa": "Mi Empresa", "rut": ""}
+        emp = st.text_input("Empresa", value=p_data['empresa'])
+        rut = st.text_input("RUT", value=p_data['rut'])
+        log = st.file_uploader("Logo", type=["png","jpg"])
+        if st.button("Guardar"):
+            with open(perf_p, "w") as f: json.dump({"empresa": emp, "rut": rut}, f)
+            if log: Image.open(log).convert("RGB").save(logo_p)
+            st.success("Perfil Guardado")
 
     elif op == "Mis Clientes":
-        st.header("Base de Datos en la Nube")
-        # Filtrar solo los clientes de este usuario
-        mis_clientes = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
-        
+        st.header("Clientes en la Nube")
+        mis_c = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
         with st.form("fc"):
-            col1, col2 = st.columns(2)
-            with col1: n = st.text_input("Cliente"); r = st.text_input("RUT")
-            with col2: d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar Cliente Permanente"):
-                nueva_fila = pd.DataFrame([[st.session_state['user_email'], n, r, d, c]], 
-                                         columns=['UsuarioID', 'Nombre', 'RUT', 'Direccion', 'Contacto'])
-                # Actualizar Google Sheets
-                df_updated = pd.concat([df_global, nueva_fila], ignore_index=True)
-                conn.update(data=df_updated)
-                st.success("Cliente guardado en tu nube privada.")
-                st.rerun()
-        
-        st.subheader("Tu lista de clientes")
-        st.dataframe(mis_clientes[['Nombre', 'RUT', 'Direccion', 'Contacto']], use_container_width=True)
+            n = st.text_input("Nombre"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
+            if st.form_submit_button("Guardar"):
+                nf = pd.DataFrame([[st.session_state['user_email'], n, r, d, c]], columns=['UsuarioID', 'Nombre', 'RUT', 'Direccion', 'Contacto'])
+                conn.update(data=pd.concat([df_global, nf], ignore_index=True))
+                st.success("Guardado en Google Sheets"); st.rerun()
+        st.dataframe(mis_c[['Nombre','RUT','Direccion','Contacto']])
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico")
-        mis_clientes = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
+        st.header("Crear Informe")
+        mis_c = df_global[df_global['UsuarioID'] == st.session_state['user_email']]
+        if mis_c.empty: st.warning("Crea un cliente primero"); st.stop()
         
-        if mis_clientes.empty:
-            st.warning("Primero registra un cliente en la sección 'Mis Clientes'.")
-        else:
-            c_sel = st.selectbox("Seleccionar Cliente", mis_clientes['Nombre'])
-            c_row = mis_clientes[mis_clientes['Nombre'] == c_sel].iloc[0]
+        c_sel = st.selectbox("Cliente", mis_c['Nombre'])
+        c_dat = mis_c[mis_c['Nombre'] == c_sel].iloc[0]
+        proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
+        img_p = st.file_uploader("Imagen Portada", type=["jpg","png"])
+        
+        with st.expander("Gestión de Obra", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1: f_i = st.date_input("Inicio"); enc = st.text_input("Responsable", value="David Alberto Pastene Moyano")
+            with col2: f_t = st.date_input("Termino"); car = st.text_input("Cargo", value="Instalador Electrico Clase D")
+            equ = st.text_area("Equipo de apoyo")
             
-            # Formulario de informe (igual al anterior pero usando perfil_data)
-            # ... (Lógica de fechas, descripción y fotos) ...
-            st.info("Al finalizar, el PDF usará tu logo y datos de empresa guardados.")
-            if st.button("🚀 Generar"):
-                st.write("Procesando...")
-    elif op == "Salir":
-        st.session_state['conectado'] = False; st.rerun()
+        det = st.text_area("Descripción Actividades", height=200)
+        con = st.text_area("Conclusiones")
+        fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
+        
+        if st.button("🚀 GENERAR PDF"):
+            p_data = cargar_json(perf_p, {"empresa": "Mi Empresa", "rut": ""})
+            d_obra = {"f_inicio": str(f_i), "f_termino": str(f_ter), "encargado": enc, "cargo": car, "equipo": equ, "detalle": det, "conclu": con}
+            pdf_out = generar_pdf("Informe de Mantenimiento", p_data, c_dat, proy, d_obra, fotos, img_p, logo_p)
+            st.download_button("Descargar", data=pdf_out, file_name=f"{proy}.pdf")

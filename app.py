@@ -8,67 +8,54 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y ESTILO (SOLUCIÓN DE CONTRASTE) ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
-# --- 2. LÓGICA DE ESTILO DINÁMICO ---
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
-    # DISEÑO INICIO (CON IMAGEN DE FONDO)
     st.markdown("""
         <style>
         .stApp {
             background-image: linear-gradient(rgba(0, 15, 40, 0.8), rgba(0, 15, 40, 0.8)), 
             url("https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?q=80&w=2070&auto=format&fit=crop");
-            background-attachment: fixed;
-            background-size: cover;
+            background-attachment: fixed; background-size: cover;
         }
         h1, h2, h3, p, span, label { color: white !important; text-shadow: 1px 1px 3px black; }
-        .stTextInput>div>div>input { background-color: white !important; color: #001f3f !important; border-radius: 8px !important; }
-        .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; border-radius: 8px !important; }
+        .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold; }
         </style>
         """, unsafe_allow_html=True)
 else:
-    # DISEÑO PANEL INTERNO (CORRIGIENDO VISIBILIDAD DEL MENÚ)
     st.markdown("""
         <style>
-        /* Fondo principal oscuro */
-        .stApp {
-            background-color: #1a2a40 !important;
-            background-image: none !important;
+        .stApp { background-color: #1a2a40 !important; }
+        
+        /* CORRECCIÓN CRÍTICA: RECUADRO DE SUBIDA DE ARCHIVOS */
+        [data-testid="stFileUploadDropzone"] {
+            background-color: #e0e0e0 !important; /* Gris claro para que se vea el contenido */
+            border: 2px dashed #ffcc00 !important;
+        }
+        [data-testid="stFileUploadDropzone"] label, [data-testid="stFileUploadDropzone"] p, [data-testid="stFileUploadDropzone"] span {
+            color: #001f3f !important; /* Texto azul oscuro muy legible */
+            font-weight: bold !important;
         }
         
-        /* CORRECCIÓN MENÚ LATERAL (SIDEBAR) */
-        [data-testid="stSidebar"] {
-            background-color: #0e1a2b !important; /* Azul más oscuro para contraste */
-            border-right: 1px solid #4b4d5a;
-        }
+        /* Sidebar y otros elementos */
+        [data-testid="stSidebar"] { background-color: #0e1a2b !important; }
+        [data-testid="stSidebar"] * { color: white !important; }
         
-        /* Letras del menú lateral */
-        [data-testid="stSidebar"] .stText, [data-testid="stSidebar"] label, [data-testid="stSidebar"] p {
-            color: #ffffff !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Círculos de selección (Radio buttons) */
-        [data-testid="stSidebar"] .st-bd {
-            color: white !important;
-        }
-
         h1, h2, h3, p, span, label { color: white !important; }
         
         .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-            background-color: rgba(255, 255, 255, 0.95) !important;
+            background-color: white !important;
             color: #001f3f !important;
-            border-radius: 8px !important;
         }
         
         .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; }
         </style>
         """, unsafe_allow_html=True)
 
-# --- 3. CONEXIÓN ---
+# --- 2. CONEXIÓN ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def obtener_usuarios():
@@ -86,12 +73,7 @@ def obtener_clientes():
 PERFIL_FILE = "perfil_config.json"
 LOGO_PATH = "logo_empresa.png"
 
-def cargar_perfil():
-    if os.path.exists(PERFIL_FILE):
-        with open(PERFIL_FILE, "r") as f: return json.load(f)
-    return {"empresa": "TECNOELEC SpA"}
-
-# --- 4. MOTOR PDF ---
+# --- 3. MOTOR PDF ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -146,61 +128,55 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- 5. INTERFAZ ---
+# --- 4. INTERFAZ ---
 if not st.session_state['conectado']:
-    st.title("INFORMES DE TRABAJO")
-    tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
-    with tab1:
+    st.title("⚡ Tecnoelec Pro Cloud")
+    t1, t2 = st.tabs(["Ingresar", "Crear Cuenta"])
+    with t1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
         if st.button("Entrar"):
             df_u = obtener_usuarios()
             if not df_u[(df_u['Usuario'] == u) & (df_u['Clave'] == p)].empty or (u == "admin" and p == "tecnoelec2026"):
                 st.session_state['conectado'] = True; st.session_state['user'] = u; st.rerun()
-            else: st.error("Acceso incorrecto")
-    with tab2:
+            else: st.error("Error")
+    with t2:
         with st.form("reg"):
             nu = st.text_input("Nuevo Usuario"); np = st.text_input("Nueva Clave", type="password")
             if st.form_submit_button("Registrarse"):
                 df_u = obtener_usuarios()
-                if nu and np and nu not in df_u['Usuario'].values:
-                    conn.update(worksheet="Usuarios", data=pd.concat([df_u, pd.DataFrame([[nu, np]], columns=['Usuario', 'Clave'])], ignore_index=True))
-                    st.success("Cuenta creada."); st.rerun()
-                else: st.warning("Error en el registro.")
+                conn.update(worksheet="Usuarios", data=pd.concat([df_u, pd.DataFrame([[nu, np]], columns=['Usuario', 'Clave'])], ignore_index=True))
+                st.success("Listo"); st.rerun()
 else:
-    # Barra lateral con colores corregidos
-    st.sidebar.markdown(f"### 👤 Bienvenido\n**{st.session_state['user']}**")
+    st.sidebar.write(f"👤 **{st.session_state['user']}**")
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
     
     if op == "Perfil Empresa":
         st.header("Identidad Corporativa")
-        p_data = cargar_perfil()
-        emp_n = st.text_input("Nombre de la Empresa", value=p_data['empresa'])
-        logo_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
-        if st.button("Guardar Perfil"):
-            with open(PERFIL_FILE, "w") as f: json.dump({"empresa": emp_n}, f)
-            if logo_f: Image.open(logo_f).convert("RGB").save(LOGO_PATH)
-            st.success("Perfil actualizado.")
-        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200)
+        emp_n = st.text_input("Nombre Empresa")
+        log_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
+        if st.button("Guardar"):
+            with open("perfil_config.json", "w") as f: json.dump({"empresa": emp_n}, f)
+            if log_f: Image.open(log_f).convert("RGB").save("logo_empresa.png")
+            st.success("Perfil guardado")
 
     elif op == "Clientes Cloud":
-        st.header("Base de Datos Cloud")
+        st.header("Base de Datos")
         df_g = obtener_clientes()
         with st.form("fc", clear_on_submit=True):
-            n = st.text_input("Nombre Cliente"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar en la Nube"):
-                if n and r:
-                    conn.update(data=pd.concat([df_g, pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])], ignore_index=True))
-                    st.success("Guardado"); st.rerun()
+            n = st.text_input("Nombre"); r = st.text_input("RUT"); d = st.text_input("Direccion"); c = st.text_input("Contacto")
+            if st.form_submit_button("Guardar"):
+                conn.update(data=pd.concat([df_g, pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])], ignore_index=True))
+                st.success("Guardado"); st.rerun()
         st.dataframe(df_g, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico RIC")
+        st.header("Informe Técnico RIC")
         df_g = obtener_clientes()
-        if df_g.empty: st.warning("Sin clientes registrados."); st.stop()
+        if df_g.empty: st.warning("Sin clientes."); st.stop()
         c_sel = st.selectbox("Cliente", df_g['Nombre'].tolist())
         c_dat = df_g[df_g['Nombre'] == c_sel].iloc[0]
-        proy = st.text_input("Nombre Proyecto", value="INSTALACION ELECTRICA")
-        img_p = st.file_uploader("Portada Proyecto", type=["jpg","png"])
+        proy = st.text_input("Proyecto", value="INSTALACION ELECTRICA")
+        img_p = st.file_uploader("Portada", type=["jpg","png"])
         with st.expander("📝 Gestión de Obra", expanded=True):
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Responsable", value=st.session_state['user'])
@@ -214,8 +190,10 @@ else:
         con = st.text_area("Conclusiones")
         fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
         if st.button("🚀 GENERAR PDF"):
-            p_conf = cargar_perfil()
-            pdf_out = generar_pdf("Informe Técnico", p_conf, c_dat, proy, {"encargado":enc, "cargo":car, "equipo_lista": equipo, "detalle":det, "conclu":con}, fotos, img_p, LOGO_PATH)
+            p_conf = {"empresa": "TECNOELEC SpA"}
+            if os.path.exists("perfil_config.json"):
+                with open("perfil_config.json", "r") as f: p_conf = json.load(f)
+            pdf_out = generar_pdf("Informe Técnico", p_conf, c_dat, proy, {"encargado":enc, "cargo":car, "equipo_lista": equipo, "detalle":det, "conclu":con}, fotos, img_p, "logo_empresa.png")
             st.download_button("Descargar Informe", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":

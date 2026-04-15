@@ -39,7 +39,7 @@ if 'conectado' not in st.session_state:
 
 st.markdown("""<style>.stButton>button { width: 100%; border-radius: 5px; background-color: #004a99; color: white; }</style>""", unsafe_allow_html=True)
 
-# --- 3. MOTOR PDF REFORZADO (Soporte UTF-8) ---
+# --- 3. MOTOR PDF ANTISUPERPOSICIÓN ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -47,18 +47,16 @@ class PDF_Pro(FPDF):
 
     def crear_seccion_titulo(self, titulo):
         self.set_fill_color(230, 230, 230); self.set_font("Arial", 'B', 10)
-        # Limpiamos el texto para evitar errores de codificación
         txt = titulo.encode('latin-1', 'replace').decode('latin-1')
         self.cell(0, 8, f" {txt}", 1, 1, 'L', True)
 
 def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
-    # Usamos latin-1 pero con reemplazo de caracteres fallidos
     pdf = PDF_Pro()
-    pdf.set_auto_page_break(auto=True, margin=15)
+    # Aumentamos el margen inferior para evitar cortes feos
+    pdf.set_auto_page_break(auto=True, margin=25)
     
     def limpiar(texto):
         if not texto: return ""
-        # Cambiamos caracteres problemáticos manualmente para asegurar compatibilidad
         cambios = {'ñ': 'n', 'Ñ': 'N', 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 
                    'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', '°': ' deg '}
         for original, reemplazo in cambios.items():
@@ -68,22 +66,24 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
     # --- PÁGINA 1: PORTADA ---
     pdf.add_page()
     if os.path.exists(LOGO_PATH):
-        pdf.image(LOGO_PATH, 10, 10, 35)
+        pdf.image(LOGO_PATH, 10, 10, 30)
     
-    pdf.ln(30)
+    pdf.set_y(45)
     pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
     pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, limpiar(titulo).upper(), 0, 1, 'C')
     
+    # IMAGEN DE PORTADA CON AJUSTE AUTOMÁTICO
     if img_portada:
         try:
             img_p = Image.open(img_portada).convert("RGB")
+            # Calculamos tamaño máximo para que quepa todo en una hoja
             img_p.save("temp_portada.jpg", "JPEG")
-            pdf.ln(5)
-            pdf.image("temp_portada.jpg", x=45, y=pdf.get_y(), w=120)
-            pdf.ln(85)
-        except: pdf.ln(20)
-    else: pdf.ln(20)
+            # Si la imagen es muy alta, la limitamos a 100mm de alto
+            pdf.image("temp_portada.jpg", x=45, y=85, w=120, h=100) 
+        except: pass
     
+    # ANCLAMOS LA TABLA AL FINAL DE LA PORTADA
+    pdf.set_y(210)
     pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
     pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
     pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
@@ -91,7 +91,8 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
     pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
     
     # --- PÁGINA 2: DESARROLLO ---
-    pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     
     pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
     pdf.set_font("Arial", '', 9)
@@ -103,7 +104,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['f_inicio']}", 1, 0); pdf.cell(95, 7, f" {datos['f_termino']}", 1, 1)
     pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " RESPONSABLE TECNICO", 1, 0); pdf.cell(95, 7, " CARGO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {limpiar(datos['encargado'])}", 1, 0); pdf.cell(95, 7, f" {limpiar(datos['cargo'])}", 1, 1)
-    pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO (EQUIPO TRABAJO)", 1, 1)
+    pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES")
@@ -118,6 +119,8 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
             try:
                 img = Image.open(foto).convert("RGB")
                 temp = f"temp_{i}.jpg"; img.save(temp, "JPEG")
+                # Controlamos que la imagen no sea más grande que el espacio disponible
+                if pdf.get_y() > 200: pdf.add_page()
                 pdf.image(temp, 15, pdf.get_y(), 180, 95); pdf.ln(100)
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
@@ -169,7 +172,7 @@ else:
             proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
             img_p = st.file_uploader("🖼️ Imagen de Portada", type=["png", "jpg", "jpeg"])
             
-            with st.expander("📝 Gestión y Personal", expanded=False):
+            with st.expander("📝 Gestión y Personal"):
                 col1, col2 = st.columns(2)
                 with col1:
                     f_ini = st.date_input("Inicio", value=datetime.date.today())

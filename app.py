@@ -11,11 +11,11 @@ import os
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Tecnoelec Pro Cloud", layout="wide")
 
-# --- 2. LÓGICA DE ESTILO DINÁMICO ---
+# --- 2. LÓGICA DE ESTILO DINÁMICO (VOLVIENDO AL DISEÑO QUE TE GUSTA) ---
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
-    # ESTILO PARA INICIO DE SESIÓN (CON IMAGEN)
+    # ESTO SOLO SE VE EN EL INICIO (CON LA IMAGEN DE OBRA)
     st.markdown("""
         <style>
         .stApp {
@@ -30,19 +30,18 @@ if not st.session_state['conectado']:
         </style>
         """, unsafe_allow_html=True)
 else:
-    # ESTILO PARA PANEL INTERNO (FONDO SÓLIDO Y LIMPIO)
+    # ESTO SE VE ADENTRO (VOLVEMOS AL COLOR AZUL QUE TENÍAS ANTES)
     st.markdown("""
         <style>
         .stApp {
-            background-color: #0e1117 !important; /* Fondo oscuro sólido profesional */
+            background-color: #1a2a40 !important; /* El azul profesional que tenías */
             background-image: none !important;
         }
-        h1, h2, h3, p, span, label { color: #f0f2f6 !important; }
-        /* Cuadros de texto limpios para trabajo */
+        h1, h2, h3, p, span, label { color: white !important; }
         .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-            background-color: #262730 !important;
-            color: white !important;
-            border: 1px solid #4b4d5a !important;
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            color: #001f3f !important;
+            border-radius: 8px !important;
         }
         .stButton>button { background-color: #ffcc00 !important; color: #001f3f !important; font-weight: bold !important; }
         </style>
@@ -71,7 +70,7 @@ def cargar_perfil():
         with open(PERFIL_FILE, "r") as f: return json.load(f)
     return {"empresa": "TECNOELEC SpA"}
 
-# --- 4. MOTOR PDF ---
+# --- 4. MOTOR PDF PROFESIONAL ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
@@ -154,10 +153,10 @@ else:
         st.header("Identidad Corporativa")
         p_data = cargar_perfil()
         emp_n = st.text_input("Nombre de la Empresa", value=p_data['empresa'])
-        log_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
+        logo_f = st.file_uploader("Subir Logo", type=["png","jpg","jpeg"])
         if st.button("Guardar Perfil"):
             with open(PERFIL_FILE, "w") as f: json.dump({"empresa": emp_n}, f)
-            if log_f: Image.open(log_f).convert("RGB").save(LOGO_PATH)
+            if logo_f: Image.open(logo_f).convert("RGB").save(LOGO_PATH)
             st.success("Perfil actualizado.")
         if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=200)
 

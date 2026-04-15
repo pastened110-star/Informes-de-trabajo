@@ -42,7 +42,8 @@ def cargar_json(file, default):
     return default
 
 def guardar_json(file, datos):
-    with open(file, "w") as f: json.dump(datos, f)
+    with open(file, "w") as f: 
+        json.dump(datos, f)
 
 # --- 3. MOTOR PDF PROFESIONAL ---
 class PDF_Pro(FPDF):
@@ -91,7 +92,6 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
     pdf.crear_seccion_titulo("II. GESTION DE OBRA - PERSONAL")
     pdf.set_font("Arial", 'B', 9); pdf.cell(110, 7, " NOMBRE", 1, 0, 'C', True); pdf.cell(80, 7, " CARGO / FUNCION", 1, 1, 'C', True)
     pdf.set_font("Arial", '', 9)
-    # Listamos al responsable y al equipo
     pdf.cell(110, 7, f" {limpiar(datos['encargado'])}", 1); pdf.cell(80, 7, f" {limpiar(datos['cargo'])}", 1, 1)
     for p in datos['equipo_lista']:
         if p['nombre']:
@@ -119,7 +119,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
-    st.title(" Informes de trabajo")
+    st.title("⚡ Tecnoelec Pro Cloud")
     u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
     if st.button("Ingresar"):
         if u == "admin" and p == "tecnoelec2026":
@@ -128,7 +128,27 @@ if not st.session_state['conectado']:
 else:
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
 
-    if op == "Clientes Cloud":
+    if op == "Perfil Empresa":
+        st.header("Marca Corporativa")
+        # --- CORRECCIÓN SECCIÓN PERFIL ---
+        p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
+        emp = st.text_input("Nombre Empresa", value=p_data['empresa'])
+        log = st.file_uploader("Subir Logo Corporativo", type=["png","jpg","jpeg"])
+        
+        if st.button("Guardar Cambios"):
+            guardar_json(PERFIL_FILE, {"empresa": emp})
+            if log:
+                try:
+                    img_log = Image.open(log).convert("RGB")
+                    img_log.save(LOGO_PATH)
+                except: pass
+            st.success("Perfil y Logo actualizados correctamente")
+        
+        if os.path.exists(LOGO_PATH):
+            st.subheader("Logo Actual")
+            st.image(LOGO_PATH, width=200)
+
+    elif op == "Clientes Cloud":
         st.header("Gestión de Clientes")
         with st.form("fc", clear_on_submit=True):
             n = st.text_input("Nombre Cliente"); r = st.text_input("RUT")
@@ -145,7 +165,7 @@ else:
         st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico ")
+        st.header("Generar Informe Técnico RIC")
         if df_global.empty: st.warning("Registre un cliente primero."); st.stop()
         
         c_sel = st.selectbox("Seleccionar Cliente", df_global['Nombre'].tolist())
@@ -153,19 +173,18 @@ else:
         proy = st.text_input("Nombre del Proyecto", value="MANTENCION ELECTRICA")
         img_p = st.file_uploader("Portada", type=["jpg","png"])
         
-        with st.expander(" Gestión de Obra y Personal", expanded=True):
-            st.subheader("Responsable ")
+        with st.expander("📝 Gestión de Obra y Personal", expanded=True):
+            st.subheader("Responsable Técnico")
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Nombre", value="David Pastene")
             with col2: car = st.text_input("Cargo", value="Oficina Técnica / Instalador Autorizado SEC")
             
-            st.subheader("Equipo de Trabajo")
-            # --- NUEVA SECCIÓN DE EQUIPO CON NOMBRE Y CARGO ---
+            st.subheader("Equipo de Trabajo Adicional")
             equipo_lista = []
-            for i in range(1, 3): # Permite agregar hasta 2 personas más
+            for i in range(1, 3):
                 c_eq1, c_eq2 = st.columns(2)
-                with c_eq1: nom_e = st.text_input(f"Nombre Personal {i}", key=f"n{i}", placeholder="Ej: Hernán Riquelme")
-                with c_eq2: car_e = st.text_input(f"Cargo Personal {i}", key=f"c{i}", placeholder="Ej: Ayudante Eléctrico")
+                with c_eq1: nom_e = st.text_input(f"Nombre Personal {i}", key=f"n{i}")
+                with c_eq2: car_e = st.text_input(f"Cargo Personal {i}", key=f"c{i}")
                 equipo_lista.append({"nombre": nom_e, "cargo": car_e})
             
         det = st.text_area("Trabajo Realizado", height=150)

@@ -145,7 +145,7 @@ else:
         st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe Técnico RIC")
+        st.header("Generar Informe Técnico ")
         if df_global.empty: st.warning("Registre un cliente primero."); st.stop()
         
         c_sel = st.selectbox("Seleccionar Cliente", df_global['Nombre'].tolist())

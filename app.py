@@ -18,13 +18,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CONEXIÓN GOOGLE SHEETS (REFORZADA) ---
+# --- 2. CONEXIÓN SEGURA ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_global = conn.read(ttl=0)
-    # Si la planilla está vacía o tiene otros nombres, forzamos la estructura correcta
-    if df_global.empty or 'Nombre' not in df_global.columns:
-        df_global = pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
+    # Normalizamos columnas
+    if not df_global.empty:
+        df_global.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
 except Exception:
     df_global = pd.DataFrame(columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
 
@@ -40,8 +40,7 @@ def cargar_json(file, default):
 
 def guardar_json(file, datos):
     datos_limpios = {k: v for k, v in datos.items() if isinstance(v, (str, int, float, bool, list, dict))}
-    with open(file, "w") as f:
-        json.dump(datos_limpios, f)
+    with open(file, "w") as f: json.dump(datos_limpios, f)
 
 # --- 3. MOTOR PDF ---
 class PDF_Pro(FPDF):
@@ -113,71 +112,41 @@ if not st.session_state['conectado']:
 else:
     op = st.sidebar.radio("Navegación", ["Perfil Empresa", "Clientes Cloud", "Nuevo Informe", "Salir"])
 
-    if op == "Perfil Empresa":
-        st.header("Configuración de Perfil")
-        p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
-        emp = st.text_input("Nombre Empresa", value=p_data['empresa'])
-        log = st.file_uploader("Logo", type=["png","jpg","jpeg"])
-        if st.button("Guardar"):
-            guardar_json(PERFIL_FILE, {"empresa": emp})
-            if log: Image.open(log).convert("RGB").save(LOGO_PATH)
-            st.success("Perfil guardado")
-
-    elif op == "Clientes Cloud":
-        st.header("Base de Datos Cloud")
+    if op == "Clientes Cloud":
+        st.header("Base de Datos Cloud (Segura)")
         with st.form("fc", clear_on_submit=True):
             n = st.text_input("Nombre Cliente"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
             if st.form_submit_button("Guardar en la Nube"):
                 if n and r:
-                    nf = pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
                     try:
-                        # Forzamos lectura fresca antes de concatenar
                         df_actual = conn.read(ttl=0)
-                        # Si la planilla tiene títulos raros, los normalizamos
-                        df_actual.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto'] if not df_actual.empty else df_actual.columns
-                        
-                        df_updated = pd.concat([df_actual, nf], ignore_index=True)
-                        conn.update(data=df_updated)
-                        st.success(f"¡{n} guardado!")
-                        st.rerun()
-                    except Exception as e: 
-                        st.error(f"Error técnico: {e}. Revisa la Fila 1 de tu Excel.")
-                else: st.warning("Nombre y RUT son obligatorios.")
-        
-        # Mostrar tabla filtrada para que se vea limpia
-        try:
-            df_display = conn.read(ttl=0)
-            st.dataframe(df_display, use_container_width=True)
-        except:
-            st.info("La base de datos está lista para recibir su primer cliente.")
+                        nuevo = pd.DataFrame([[n, r, d, c]], columns=['Nombre', 'RUT', 'Direccion', 'Contacto'])
+                        df_final = pd.concat([df_actual, nuevo], ignore_index=True)
+                        conn.update(data=df_final)
+                        st.success(f"¡{n} guardado!"); st.rerun()
+                    except Exception as e: st.error(f"Error: {e}")
+                else: st.warning("Nombre y RUT obligatorios.")
+        st.dataframe(df_global, use_container_width=True)
 
     elif op == "Nuevo Informe":
-        st.header("Generar Informe")
-        try:
-            df_fresh = conn.read(ttl=0)
-            df_fresh.columns = ['Nombre', 'RUT', 'Direccion', 'Contacto']
-        except: df_fresh = pd.DataFrame()
-
+        st.header("Generar Informe Técnico")
+        df_fresh = conn.read(ttl=0)
         if df_fresh.empty: st.warning("Agregue un cliente primero."); st.stop()
-        
         c_sel = st.selectbox("Cliente", df_fresh['Nombre'])
         c_dat = df_fresh[df_fresh['Nombre'] == c_sel].iloc[0]
         proy = st.text_input("Proyecto", value="PROYECTO ELECTRICO")
         img_p = st.file_uploader("Portada", type=["jpg","png"])
-        
         with st.expander("Gestión", expanded=True):
             col1, col2 = st.columns(2)
-            with col1: f_i = st.date_input("Inicio"); enc = st.text_input("Responsable", value="David Alberto Pastene Moyano")
+            with col1: f_i = st.date_input("Inicio"); enc = st.text_input("Responsable", value="David Pastene")
             with col2: f_t = st.date_input("Termino"); car = st.text_input("Cargo", value="Instalador Eléctrico Clase D")
             equ = st.text_area("Equipo de apoyo")
-            
         det = st.text_area("Actividades", height=200)
         con = st.text_area("Conclusiones")
-        fotos = st.file_uploader("Anexo Fotos", accept_multiple_files=True)
-        
+        fotos = st.file_uploader("Fotos", accept_multiple_files=True)
         if st.button("🚀 GENERAR PDF"):
             p_data = cargar_json(PERFIL_FILE, {"empresa": "TECNOELEC SpA"})
-            pdf_out = generar_pdf("Informe de Mantenimiento", p_data, c_dat, proy, {"f_inicio":str(f_i),"f_termino":str(f_t),"encargado":enc,"cargo":car,"equipo":equ,"detalle":det,"conclu":con}, fotos, img_p, LOGO_PATH)
+            pdf_out = generar_pdf("Informe", p_data, c_dat, proy, {"f_inicio":str(f_i),"f_termino":str(f_t),"encargado":enc,"cargo":car,"equipo":equ,"detalle":det,"conclu":con}, fotos, img_p, LOGO_PATH)
             st.download_button("Descargar", data=pdf_out, file_name=f"{proy}.pdf")
 
     elif op == "Salir":

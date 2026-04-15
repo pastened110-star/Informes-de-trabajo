@@ -7,7 +7,7 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN Y PERSISTENCIA ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Gestor Tecnoelec Pro", layout="wide")
 
 PERFIL_FILE = "perfil_config.json"
@@ -39,70 +39,78 @@ if 'conectado' not in st.session_state:
 
 st.markdown("""<style>.stButton>button { width: 100%; border-radius: 5px; background-color: #004a99; color: white; }</style>""", unsafe_allow_html=True)
 
-# --- 3. MOTOR PDF MEJORADO ---
+# --- 3. MOTOR PDF REFORZADO (Soporte UTF-8) ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
     def crear_seccion_titulo(self, titulo):
         self.set_fill_color(230, 230, 230); self.set_font("Arial", 'B', 10)
-        self.cell(0, 8, f" {titulo}", 1, 1, 'L', True)
+        # Limpiamos el texto para evitar errores de codificación
+        txt = titulo.encode('latin-1', 'replace').decode('latin-1')
+        self.cell(0, 8, f" {txt}", 1, 1, 'L', True)
 
 def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
+    # Usamos latin-1 pero con reemplazo de caracteres fallidos
     pdf = PDF_Pro()
     pdf.set_auto_page_break(auto=True, margin=15)
     
+    def limpiar(texto):
+        if not texto: return ""
+        # Cambiamos caracteres problemáticos manualmente para asegurar compatibilidad
+        cambios = {'ñ': 'n', 'Ñ': 'N', 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 
+                   'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', '°': ' deg '}
+        for original, reemplazo in cambios.items():
+            texto = texto.replace(original, reemplazo)
+        return texto.encode('latin-1', 'ignore').decode('latin-1')
+
     # --- PÁGINA 1: PORTADA ---
     pdf.add_page()
     if os.path.exists(LOGO_PATH):
         pdf.image(LOGO_PATH, 10, 10, 35)
     
     pdf.ln(30)
-    pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, proy.upper(), 0, 'C')
-    pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, titulo.upper(), 0, 1, 'C')
+    pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
+    pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, limpiar(titulo).upper(), 0, 1, 'C')
     
-    # Imagen de Portada (Si existe)
     if img_portada:
         try:
             img_p = Image.open(img_portada).convert("RGB")
             img_p.save("temp_portada.jpg", "JPEG")
-            # Centrar imagen de portada
             pdf.ln(5)
             pdf.image("temp_portada.jpg", x=45, y=pdf.get_y(), w=120)
-            pdf.ln(85) # Espacio para que la tabla no choque
+            pdf.ln(85)
         except: pdf.ln(20)
-    else:
-        pdf.ln(20)
+    else: pdf.ln(20)
     
-    # Tabla Control de Versiones
     pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
     pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
     pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
     pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
-    pdf.cell(50, 8, datos['encargado'], 1, 0, 'C'); pdf.cell(50, 8, perfil['empresa'], 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
+    pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
     
     # --- PÁGINA 2: DESARROLLO ---
     pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     
     pdf.crear_seccion_titulo("I. INFORMACION GENERAL")
     pdf.set_font("Arial", '', 9)
-    pdf.cell(95, 7, f" Cliente: {cliente['Nombre']}", 1); pdf.cell(95, 7, f" Contacto: {cliente['Contacto']}", 1, 1)
-    pdf.cell(0, 7, f" Dirección: {cliente['Direccion']}", 1, 1); pdf.ln(5)
+    pdf.cell(95, 7, f" Cliente: {limpiar(cliente['Nombre'])}", 1); pdf.cell(95, 7, f" Contacto: {limpiar(cliente['Contacto'])}", 1, 1)
+    pdf.cell(0, 7, f" Direccion: {limpiar(cliente['Direccion'])}", 1, 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("II. GESTION DE OBRA")
     pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " FECHA DE INICIO", 1, 0); pdf.cell(95, 7, " FECHA DE TERMINO", 1, 1)
     pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['f_inicio']}", 1, 0); pdf.cell(95, 7, f" {datos['f_termino']}", 1, 1)
     pdf.set_font("Arial", 'B', 9); pdf.cell(95, 7, " RESPONSABLE TECNICO", 1, 0); pdf.cell(95, 7, " CARGO", 1, 1)
-    pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {datos['encargado']}", 1, 0); pdf.cell(95, 7, f" {datos['cargo']}", 1, 1)
+    pdf.set_font("Arial", '', 9); pdf.cell(95, 7, f" {limpiar(datos['encargado'])}", 1, 0); pdf.cell(95, 7, f" {limpiar(datos['cargo'])}", 1, 1)
     pdf.set_font("Arial", 'B', 9); pdf.cell(0, 7, " PERSONAL DE APOYO (EQUIPO TRABAJO)", 1, 1)
-    pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {datos['equipo']}", 1); pdf.ln(5)
+    pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES")
-    pdf.multi_cell(0, 6, f" {datos['detalle']}", 1); pdf.ln(5)
+    pdf.multi_cell(0, 6, f" {limpiar(datos['detalle'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("IV. CONCLUSIONES")
-    pdf.multi_cell(0, 6, f" {datos['conclu']}", 1)
+    pdf.multi_cell(0, 6, f" {limpiar(datos['conclu'])}", 1)
     
     if fotos:
         pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "REGISTRO FOTOGRAFICO", 0, 1, 'L')
@@ -133,7 +141,7 @@ else:
             guardar_json(PERFIL_FILE, st.session_state['perfil'])
             if logo:
                 img = Image.open(logo).convert("RGB"); img.save(LOGO_PATH)
-            st.success("¡Perfil actualizado!")
+            st.success("Perfil actualizado")
 
     elif op == "Clientes":
         st.header("Base de Datos de Clientes")
@@ -158,10 +166,8 @@ else:
             st.warning("Agregue un cliente primero.")
         else:
             c_sel = st.selectbox("Cliente", st.session_state['clientes']['Nombre'])
-            proy = st.text_input("Nombre Proyecto", value="PROYECTO ELÉCTRICO")
-            
-            # --- NUEVA OPCIÓN: IMAGEN DE PORTADA ---
-            img_p = st.file_uploader("🖼️ Imagen de Portada (Principal)", type=["png", "jpg", "jpeg"])
+            proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
+            img_p = st.file_uploader("🖼️ Imagen de Portada", type=["png", "jpg", "jpeg"])
             
             with st.expander("📝 Gestión y Personal", expanded=False):
                 col1, col2 = st.columns(2)
@@ -170,7 +176,7 @@ else:
                     enc = st.text_input("Responsable", value="David Alberto Pastene Moyano")
                 with col2:
                     f_ter = st.date_input("Término", value=datetime.date.today())
-                    car = st.text_input("Cargo", value="Instalador Eléctrico Clase D")
+                    car = st.text_input("Cargo", value="Instalador Electrico Clase D")
                 equ = st.text_area("Equipo de trabajo")
 
             det = st.text_area("Descripción Actividades", value=st.session_state.get('tmp_det', ''), height=200)

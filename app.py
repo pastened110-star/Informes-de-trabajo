@@ -119,7 +119,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
 if 'conectado' not in st.session_state: st.session_state['conectado'] = False
 
 if not st.session_state['conectado']:
-    st.title("⚡ Tecnoelec Pro Cloud")
+    st.title(" Informes de trabajo")
     u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
     if st.button("Ingresar"):
         if u == "admin" and p == "tecnoelec2026":
@@ -153,13 +153,13 @@ else:
         proy = st.text_input("Nombre del Proyecto", value="MANTENCION ELECTRICA")
         img_p = st.file_uploader("Portada", type=["jpg","png"])
         
-        with st.expander("📝 Gestión de Obra y Personal", expanded=True):
-            st.subheader("Responsable Técnico")
+        with st.expander(" Gestión de Obra y Personal", expanded=True):
+            st.subheader("Responsable ")
             col1, col2 = st.columns(2)
             with col1: enc = st.text_input("Nombre", value="David Pastene")
             with col2: car = st.text_input("Cargo", value="Oficina Técnica / Instalador Autorizado SEC")
             
-            st.subheader("Equipo de Trabajo Adicional")
+            st.subheader("Equipo de Trabajo")
             # --- NUEVA SECCIÓN DE EQUIPO CON NOMBRE Y CARGO ---
             equipo_lista = []
             for i in range(1, 3): # Permite agregar hasta 2 personas más

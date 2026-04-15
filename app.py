@@ -7,7 +7,7 @@ import datetime
 import json
 import os
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y PERSISTENCIA ---
 st.set_page_config(page_title="Gestor Tecnoelec Pro", layout="wide")
 
 PERFIL_FILE = "perfil_config.json"
@@ -39,21 +39,23 @@ if 'conectado' not in st.session_state:
 
 st.markdown("""<style>.stButton>button { width: 100%; border-radius: 5px; background-color: #004a99; color: white; }</style>""", unsafe_allow_html=True)
 
-# --- 3. MOTOR PDF ANTISUPERPOSICIÓN ---
+# --- 3. MOTOR PDF MEJORADO (SIN CORTES) ---
 class PDF_Pro(FPDF):
     def footer(self):
         self.set_y(-15); self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
     def crear_seccion_titulo(self, titulo):
+        # Verificamos si hay espacio suficiente para el título y al menos dos líneas de texto
+        if self.get_y() > 250: self.add_page()
         self.set_fill_color(230, 230, 230); self.set_font("Arial", 'B', 10)
         txt = titulo.encode('latin-1', 'replace').decode('latin-1')
         self.cell(0, 8, f" {txt}", 1, 1, 'L', True)
 
 def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
+    # Reducimos el margen de salto a 20mm para aprovechar más la hoja
     pdf = PDF_Pro()
-    # Aumentamos el margen inferior para evitar cortes feos
-    pdf.set_auto_page_break(auto=True, margin=25)
+    pdf.set_auto_page_break(auto=True, margin=20)
     
     def limpiar(texto):
         if not texto: return ""
@@ -72,25 +74,23 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
     pdf.set_font('Arial', 'B', 22); pdf.multi_cell(0, 12, limpiar(proy).upper(), 0, 'C')
     pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, limpiar(titulo).upper(), 0, 1, 'C')
     
-    # IMAGEN DE PORTADA CON AJUSTE AUTOMÁTICO
     if img_portada:
         try:
             img_p = Image.open(img_portada).convert("RGB")
-            # Calculamos tamaño máximo para que quepa todo en una hoja
             img_p.save("temp_portada.jpg", "JPEG")
-            # Si la imagen es muy alta, la limitamos a 100mm de alto
-            pdf.image("temp_portada.jpg", x=45, y=85, w=120, h=100) 
+            # Ajustamos la imagen para que no empuje la tabla fuera de la primera página
+            pdf.image("temp_portada.jpg", x=45, y=85, w=120, h=90) 
         except: pass
     
-    # ANCLAMOS LA TABLA AL FINAL DE LA PORTADA
-    pdf.set_y(210)
+    # Anclamos la tabla firmemente al pie de la portada
+    pdf.set_y(205)
     pdf.set_fill_color(200, 220, 255); pdf.set_font('Arial', 'B', 8)
     pdf.cell(20, 8, "REV", 1, 0, 'C', True); pdf.cell(30, 8, "FECHA", 1, 0, 'C', True)
     pdf.cell(50, 8, "PREPARA", 1, 0, 'C', True); pdf.cell(50, 8, "REVISA", 1, 0, 'C', True); pdf.cell(40, 8, "APRUEBA", 1, 1, 'C', True)
     pdf.set_font('Arial', '', 8); pdf.cell(20, 8, "01", 1, 0, 'C'); pdf.cell(30, 8, str(datetime.date.today()), 1, 0, 'C')
     pdf.cell(50, 8, limpiar(datos['encargado']), 1, 0, 'C'); pdf.cell(50, 8, limpiar(perfil['empresa']), 1, 0, 'C'); pdf.cell(40, 8, "CLIENTE", 1, 1, 'C')
     
-    # --- PÁGINA 2: DESARROLLO ---
+    # --- PÁGINA 2 EN ADELANTE ---
     pdf.add_page()
     pdf.set_font('Arial', 'B', 14); pdf.cell(0, 10, "DESARROLLO TECNICO", 0, 1, 'L'); pdf.ln(5)
     
@@ -108,6 +108,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
     pdf.set_font("Arial", '', 9); pdf.multi_cell(0, 7, f" {limpiar(datos['equipo'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("III. DESCRIPCION ACTIVIDADES")
+    # Multi_cell maneja automáticamente los saltos de línea largos
     pdf.multi_cell(0, 6, f" {limpiar(datos['detalle'])}", 1); pdf.ln(5)
     
     pdf.crear_seccion_titulo("IV. CONCLUSIONES")
@@ -119,9 +120,9 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada):
             try:
                 img = Image.open(foto).convert("RGB")
                 temp = f"temp_{i}.jpg"; img.save(temp, "JPEG")
-                # Controlamos que la imagen no sea más grande que el espacio disponible
-                if pdf.get_y() > 200: pdf.add_page()
-                pdf.image(temp, 15, pdf.get_y(), 180, 95); pdf.ln(100)
+                # Verificamos espacio antes de poner la foto
+                if pdf.get_y() > 180: pdf.add_page()
+                pdf.image(temp, 15, pdf.get_y(), 180, 95); pdf.ln(105)
             except: pass
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
@@ -139,7 +140,7 @@ else:
     if op == "Perfil":
         st.header("Perfil Empresa")
         st.session_state['perfil']['empresa'] = st.text_input("Empresa", value=st.session_state['perfil']['empresa'])
-        logo = st.file_uploader("Logo Fijo (Reportes)", type=["png", "jpg", "jpeg"])
+        logo = st.file_uploader("Actualizar Logo", type=["png", "jpg", "jpeg"])
         if st.button("Guardar Perfil"):
             guardar_json(PERFIL_FILE, st.session_state['perfil'])
             if logo:
@@ -149,8 +150,8 @@ else:
     elif op == "Clientes":
         st.header("Base de Datos de Clientes")
         with st.form("fc", clear_on_submit=True):
-            n = st.text_input("Nombre"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
-            if st.form_submit_button("Guardar Cliente"):
+            n = st.text_input("Nombre Cliente"); r = st.text_input("RUT"); d = st.text_input("Dirección"); c = st.text_input("Contacto")
+            if st.form_submit_button("Guardar"):
                 nuevo = pd.DataFrame([[n,r,d,c]], columns=['Nombre','RUT','Direccion','Contacto'])
                 st.session_state['clientes'] = pd.concat([st.session_state['clientes'], nuevo], ignore_index=True)
                 guardar_json(CLIENTES_FILE, st.session_state['clientes'].values.tolist())
@@ -159,20 +160,19 @@ else:
 
     elif op == "Generar Informe":
         st.header("Nuevo Informe Técnico")
-        
         if os.path.exists(BORRADOR_FILE) and st.button("📂 Recuperar Borrador"):
             b = cargar_json(BORRADOR_FILE, {})
             st.session_state['tmp_det'] = b.get('detalle', ''); st.session_state['tmp_con'] = b.get('conclu', '')
             st.rerun()
 
         if st.session_state['clientes'].empty:
-            st.warning("Agregue un cliente primero.")
+            st.warning("Primero agrega un cliente.")
         else:
             c_sel = st.selectbox("Cliente", st.session_state['clientes']['Nombre'])
-            proy = st.text_input("Nombre Proyecto", value="PROYECTO ELECTRICO")
+            proy = st.text_input("Proyecto", value="PROYECTO ELECTRICO")
             img_p = st.file_uploader("🖼️ Imagen de Portada", type=["png", "jpg", "jpeg"])
             
-            with st.expander("📝 Gestión y Personal"):
+            with st.expander("📝 Gestión y Personal", expanded=False):
                 col1, col2 = st.columns(2)
                 with col1:
                     f_ini = st.date_input("Inicio", value=datetime.date.today())
@@ -191,7 +191,7 @@ else:
 
             fotos = st.file_uploader("Anexo Fotográfico", accept_multiple_files=True)
             
-            if st.button("🚀 GENERAR PDF FINAL"):
+            if st.button("🚀 FINALIZAR Y DESCARGAR PDF"):
                 c_data = st.session_state['clientes'][st.session_state['clientes']['Nombre'] == c_sel].iloc[0]
                 d_obra = {"f_inicio": str(f_ini), "f_termino": str(f_ter), "encargado": enc, "cargo": car, "equipo": equ, "detalle": det, "conclu": con}
                 pdf_out = generar_pdf("Informe de Mantenimiento", st.session_state['perfil'], c_data, proy, d_obra, fotos, img_p)

@@ -2,3 +2,4 @@ streamlit
 fpdf
 Pillow
 pandas
+st-gsheets-connection

@@ -88,34 +88,55 @@ elif menu == "👥 Mis Clientes":
 
 # SECCIÓN: CREAR INFORME
 elif menu == "📝 Crear Informe":
-    st.header("Generar Nuevo Documento")
+    st.header("📄 Generar Nuevo Documento Técnico")
     
+    # FILA 1: TÍTULO Y CLIENTE
     col1, col2 = st.columns(2)
     with col1:
-        titulo_personalizado = st.text_input("Título del Informe", value="Informe de Obra")
-        # Selector de cliente desde la base de datos interna
+        titulo_personalizado = st.text_input("Tipo de Documento", value="Informe de Obra")
         if not st.session_state['clientes'].empty:
-            cliente_nom = st.selectbox("Selecciona el Cliente", st.session_state['clientes']['Nombre'])
+            cliente_nom = st.selectbox("Seleccionar Cliente", st.session_state['clientes']['Nombre'])
             cliente_data = st.session_state['clientes'][st.session_state['clientes']['Nombre'] == cliente_nom].iloc[0]
         else:
-            st.warning("Primero debes agregar un cliente en la sección 'Mis Clientes'.")
+            st.warning("⚠️ Agrega un cliente en 'Mis Clientes' primero.")
             st.stop()
-    
     with col2:
-        fecha = st.date_input("Fecha del servicio")
-        proyecto_nom = st.text_input("Nombre del Proyecto/Referencia")
+        proyecto_nom = st.text_input("Nombre del Proyecto / OT")
 
-    hallazgos = st.text_area("Descripción de los trabajos realizados")
+    # FILA 2: FECHAS Y TIEMPOS
+    st.subheader("🗓️ Plazos y Tiempos")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        f_inicio = st.date_input("Fecha de Inicio")
+    with c2:
+        f_termino = st.date_input("Fecha de Término")
+    with c3:
+        tiempo_aprox = st.text_input("Tiempo aprox. de trabajo", placeholder="Ej: 5 días / 40 horas")
+
+    # FILA 3: PERSONAL CARGO
+    st.subheader("👷 Personal Responsable")
+    p1, p2 = st.columns(2)
+    with p1:
+        encargado = st.text_input("Persona Encargada")
+    with p2:
+        cargo_encargado = st.text_input("Cargo del Encargado")
     
-    if st.button("🚀 Previsualizar y Descargar PDF"):
-        pdf_bytes = generar_pdf(
-            titulo_personalizado, 
-            st.session_state['perfil'], 
-            cliente_data, 
-            proyecto_nom, 
-            fecha, 
-            hallazgos, 
-            "", 
-            st.session_state['perfil']['logo']
-        )
-        st.download_button("⬇️ Descargar Informe", data=pdf_bytes, file_name=f"{titulo_personalizado}.pdf")
+    equipo_trabajo = st.text_area("Equipo de Trabajo", placeholder="Ej: Juan Pérez (Eléctrico), Luis Mora (Ayudante)...")
+
+    # FILA 4: CONTENIDO TÉCNICO
+    st.subheader("🖋️ Desarrollo del Trabajo")
+    descripcion_breve = st.text_input("Breve descripción del trabajo (Resumen)")
+    trabajo_realizado = st.text_area("Trabajo Realizado (Detalle paso a paso)", height=150)
+    conclusiones = st.text_area("Conclusiones Finales")
+
+    # BOTÓN DE GENERACIÓN
+    st.divider()
+    if st.button("🔥 Generar Informe Completo"):
+        # Aquí llamaremos a la función PDF con todos estos nuevos datos
+        datos_obra = {
+            "f_inicio": f_inicio, "f_termino": f_termino, "tiempo": tiempo_aprox,
+            "encargado": encargado, "cargo": cargo_encargado, "equipo": equipo_trabajo,
+            "resumen": descripcion_breve, "detalle": trabajo_realizado, "conclu": conclusiones
+        }
+        pdf_bytes = generar_pdf_avanzado(titulo_personalizado, st.session_state['perfil'], cliente_data, proyecto_nom, datos_obra, st.session_state['perfil']['logo'])
+        st.download_button("💾 Descargar PDF", data=pdf_bytes, file_name=f"Informe_{cliente_nom}.pdf")

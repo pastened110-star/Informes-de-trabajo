@@ -109,7 +109,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
 # --- 4. INTERFAZ DE ACCESO ---
 if not st.session_state['conectado']:
     st.markdown('<div class="main-box">', unsafe_allow_html=True)
-    st.title("⚡ Tecnoelec Pro Cloud")
+    st.title(" Informes de trabajo")
     st.subheader("Acceso al Sistema")
     u = st.text_input("Usuario")
     p = st.text_input("Clave", type="password")

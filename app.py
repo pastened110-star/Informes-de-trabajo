@@ -148,7 +148,7 @@ def generar_pdf(titulo, perfil, cliente, proy, datos, fotos, img_portada, logo_p
 
 # --- 5. INTERFAZ ---
 if not st.session_state['conectado']:
-    st.title("⚡ Tecnoelec Pro Cloud")
+    st.title("INFORMES DE TRABAJO")
     tab1, tab2 = st.tabs(["Ingresar", "Crear Cuenta"])
     with tab1:
         u = st.text_input("Usuario"); p = st.text_input("Clave", type="password")
